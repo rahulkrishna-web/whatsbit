@@ -1,0 +1,294 @@
+.appContainer {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  background-color: #f0f2f5;
+}
+
+/* CRM Sidebar */
+.crmSidebar {
+  width: 240px;
+  background-color: #f8fafc;
+  border-right: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 0;
+  font-size: 14px;
+}
+.crmHeader {
+  padding: 0 16px 16px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.crmAvatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: bold;
+}
+.crmMenu {
+  list-style: none;
+  margin-top: 16px;
+}
+.crmMenuItem {
+  padding: 12px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #475569;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+.crmMenuItem:hover {
+  background-color: #e2e8f0;
+}
+.crmMenuItem.active {
+  background-color: #eff6ff;
+  color: #2563eb;
+  font-weight: 500;
+  border-left: 3px solid #2563eb;
+}
+.badge {
+  background-color: #e2e8f0;
+  color: #475569;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+}
+.active .badge {
+  background-color: #2563eb;
+  color: white;
+}
+
+/* Chat List */
+.chatListPane {
+  width: 350px;
+  background-color: #fff;
+  border-right: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+}
+.chatSearch {
+  padding: 16px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.chatSearchInput {
+  width: 100%;
+  padding: 10px 16px;
+  border-radius: 20px;
+  border: 1px solid #e2e8f0;
+  background-color: #f8fafc;
+  outline: none;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+.chatSearchInput:focus {
+  background-color: #fff;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+}
+.contactList {
+  flex: 1;
+  overflow-y: auto;
+}
+.contactItem {
+  display: flex;
+  padding: 16px;
+  gap: 12px;
+  cursor: pointer;
+  border-bottom: 1px solid #f1f5f9;
+  transition: background-color 0.2s;
+}
+.contactItem:hover {
+  background-color: #f8fafc;
+}
+.contactItem.active {
+  background-color: #f1f5f9;
+}
+.contactAvatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background-color: #94a3b8;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 600;
+}
+.contactInfo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
+}
+.contactHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.contactName {
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.contactTime {
+  font-size: 12px;
+  color: #64748b;
+}
+.contactPreview {
+  font-size: 13px;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Active Chat */
+.activeChatPane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png');
+  background-color: #efeae2;
+  background-size: contain;
+}
+.chatHeader {
+  height: 64px;
+  background-color: #fff;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  z-index: 10;
+}
+.chatHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.chatHeaderInfo {
+  display: flex;
+  flex-direction: column;
+}
+.chatHeaderName {
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 16px;
+}
+.chatHeaderStatus {
+  font-size: 13px;
+  color: #64748b;
+}
+.messagesContainer {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.messageWrapper {
+  display: flex;
+  flex-direction: column;
+  max-width: 65%;
+  margin-bottom: 4px;
+}
+.messageWrapper.sent {
+  align-self: flex-end;
+}
+.messageWrapper.received {
+  align-self: flex-start;
+}
+.messageBubble {
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.4;
+  position: relative;
+  box-shadow: 0 1px 1px rgba(0,0,0,0.1);
+  color: #111b21;
+}
+.messageWrapper.sent .messageBubble {
+  background-color: #dcf8c6;
+  border-top-right-radius: 0;
+}
+.messageWrapper.received .messageBubble {
+  background-color: #fff;
+  border-top-left-radius: 0;
+}
+.messageFooter {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+}
+.messageTime {
+  font-size: 11px;
+  color: #667781;
+}
+.messageStatus {
+  font-size: 12px;
+  color: #53bdeb; /* Blue ticks color */
+}
+.chatInputArea {
+  min-height: 64px;
+  background-color: #f0f2f5;
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.chatInputField {
+  flex: 1;
+  padding: 14px 20px;
+  border-radius: 24px;
+  border: none;
+  outline: none;
+  font-size: 15px;
+  background-color: #fff;
+  box-shadow: 0 1px 1px rgba(0,0,0,0.05);
+}
+.sendButton {
+  background-color: #00a884;
+  color: #fff;
+  border: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.sendButton:hover {
+  background-color: #008f6f;
+}
+.sendButton:disabled {
+  background-color: #aebac1;
+  cursor: not-allowed;
+}
+.sendIcon {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
