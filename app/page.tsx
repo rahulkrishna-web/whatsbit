@@ -65,6 +65,20 @@ export default function ChatApp() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  // Initialize Bitrix24 SDK if inside iframe
+  useEffect(() => {
+    const w = window as any;
+    if (w.BX24) {
+      try {
+        w.BX24.init(() => {
+          w.BX24.fitWindow();
+        });
+      } catch (e) {
+        console.error("Failed to initialize Bitrix24 client SDK", e);
+      }
+    }
+  }, []);
+
   // Load state from localStorage on mount
   useEffect(() => {
     const savedContacts = localStorage.getItem("whatsbit_contacts");
