@@ -11,17 +11,103 @@ type Message = {
   status: "sent" | "delivered" | "read";
 };
 
-export default function ChatApp() {
-  const [messages, setMessages] = useState<Message[]>([
+type Contact = {
+  id: string;
+  name: string;
+  avatar: string;
+  time: string;
+  preview: string;
+  statusText: string;
+  unreadCount?: number;
+};
+
+const INITIAL_CONTACTS: Contact[] = [
+  {
+    id: "918839780947",
+    name: "918839780947",
+    avatar: "👤",
+    time: "03/13/2026",
+    preview: "Please tell us how we did. Just send 1 if you are satisfied...",
+    statusText: "WhatsApp • Online",
+  },
+  {
+    id: "anirrudh_sharma",
+    name: "Anirrudh Sharma",
+    avatar: "RS",
+    time: "11:53 AM",
+    preview: "Project offer 1...nt.pdf",
+    statusText: "WhatsApp • Offline",
+  },
+];
+
+const INITIAL_MESSAGES: Record<string, Message[]> = {
+  "918839780947": [
     { id: "1", text: "Please tell us how we did. Just send 1 if you are satisfied...", isSent: false, time: "11:53 AM", status: "read" },
     { id: "2", text: "Scaling Your Flour Mill - Webinar Registration", isSent: false, time: "11:53 AM", status: "read" },
-  ]);
+  ],
+  "anirrudh_sharma": [
+    { id: "a1", text: "Hello, regarding the project proposal", isSent: false, time: "10:30 AM", status: "read" },
+    { id: "a2", text: "Project offer 1...nt.pdf", isSent: false, time: "11:53 AM", status: "read" },
+  ],
+};
+
+export default function ChatApp() {
+  const [contacts, setContacts] = useState<Contact[]>(INITIAL_CONTACTS);
+  const [activeChatId, setActiveChatId] = useState<string>("918839780947");
+  const [allMessages, setAllMessages] = useState<Record<string, Message[]>>(INITIAL_MESSAGES);
   const [inputText, setInputText] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isLoaded, setIsLoaded] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
+
+  // Load state from localStorage on mount
+  useEffect(() => {
+    const savedContacts = localStorage.getItem("whatsbit_contacts");
+    const savedMessages = localStorage.getItem("whatsbit_messages");
+    const savedActiveChat = localStorage.getItem("whatsbit_active_chat");
+    if (savedContacts) {
+      try {
+        setContacts(JSON.parse(savedContacts));
+      } catch (e) {
+        console.error("Failed to parse contacts from localStorage", e);
+      }
+    }
+    if (savedMessages) {
+      try {
+        setAllMessages(JSON.parse(savedMessages));
+      } catch (e) {
+        console.error("Failed to parse messages from localStorage", e);
+      }
+    }
+    if (savedActiveChat) {
+      setActiveChatId(savedActiveChat);
+    }
+    setIsLoaded(true);
+  }, []);
+
+  // Save to localStorage on changes after load
+  useEffect(() => {
+    if (!isLoaded) return;
+    localStorage.setItem("whatsbit_contacts", JSON.stringify(contacts));
+  }, [contacts, isLoaded]);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    localStorage.setItem("whatsbit_messages", JSON.stringify(allMessages));
+  }, [allMessages, isLoaded]);
+
+  useEffect(() => {
+    if (!isLoaded) return;
+    localStorage.setItem("whatsbit_active_chat", activeChatId);
+  }, [activeChatId, isLoaded]);
+
+  const activeContact = contacts.find((c) => c.id === activeChatId) || contacts[0] || INITIAL_CONTACTS[0];
+  const messages = allMessages[activeChatId] || [];
 
   useEffect(() => {
     scrollToBottom();
@@ -30,29 +116,68 @@ export default function ChatApp() {
   const handleSend = () => {
     if (!inputText.trim()) return;
 
+    const messageText = inputText;
+    const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const newMessage: Message = {
       id: Date.now().toString(),
-      text: inputText,
+      text: messageText,
       isSent: true,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      time: timeString,
       status: "sent",
     };
 
-    setMessages((prev) => [...prev, newMessage]);
+    setAllMessages((prev) => {
+      const chatMsgs = prev[activeChatId] || [];
+      return {
+        ...prev,
+        [activeChatId]: [...chatMsgs, newMessage],
+      };
+    });
+
+    setContacts((prevContacts) =>
+      prevContacts.map((c) =>
+        c.id === activeChatId
+          ? { ...c, preview: messageText, time: timeString }
+          : c
+      )
+    );
+
     setInputText("");
 
     // Simulate reply after 2 seconds
+    const targetChatId = activeChatId;
     setTimeout(() => {
+      const replyTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       const replyMessage: Message = {
         id: (Date.now() + 1).toString(),
         text: "Thank you for reaching out! We've received your message and will get back to you shortly.",
         isSent: false,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        time: replyTime,
         status: "read",
       };
-      setMessages((prev) => [...prev, replyMessage]);
+
+      setAllMessages((prev) => {
+        const chatMsgs = prev[targetChatId] || [];
+        return {
+          ...prev,
+          [targetChatId]: [...chatMsgs, replyMessage],
+        };
+      });
+
+      setContacts((prevContacts) =>
+        prevContacts.map((c) =>
+          c.id === targetChatId
+            ? { ...c, preview: replyMessage.text, time: replyTime }
+            : c
+        )
+      );
     }, 2000);
   };
+
+  const filteredContacts = contacts.filter((c) =>
+    c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    c.preview.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <div className={styles.appContainer}>
@@ -87,30 +212,30 @@ export default function ChatApp() {
             type="text"
             placeholder="Search from URL or contacts..."
             className={styles.chatSearchInput}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
         <div className={styles.contactList}>
-          {/* Mock Contact */}
-          <div className={`${styles.contactItem} ${styles.active}`}>
-            <div className={styles.contactAvatar}>👤</div>
-            <div className={styles.contactInfo}>
-              <div className={styles.contactHeader}>
-                <span className={styles.contactName}>918839780947</span>
-                <span className={styles.contactTime}>03/13/2026</span>
+          {filteredContacts.map((contact) => {
+            const isActive = contact.id === activeChatId;
+            return (
+              <div
+                key={contact.id}
+                className={`${styles.contactItem} ${isActive ? styles.active : ""}`}
+                onClick={() => setActiveChatId(contact.id)}
+              >
+                <div className={styles.contactAvatar}>{contact.avatar}</div>
+                <div className={styles.contactInfo}>
+                  <div className={styles.contactHeader}>
+                    <span className={styles.contactName}>{contact.name}</span>
+                    <span className={styles.contactTime}>{contact.time}</span>
+                  </div>
+                  <span className={styles.contactPreview}>{contact.preview}</span>
+                </div>
               </div>
-              <span className={styles.contactPreview}>Please tell us how we did. Just se...</span>
-            </div>
-          </div>
-          <div className={styles.contactItem}>
-            <div className={styles.contactAvatar}>RS</div>
-            <div className={styles.contactInfo}>
-              <div className={styles.contactHeader}>
-                <span className={styles.contactName}>Anirrudh Sharma</span>
-                <span className={styles.contactTime}>11:53 AM</span>
-              </div>
-              <span className={styles.contactPreview}>Project offer 1...nt.pdf</span>
-            </div>
-          </div>
+            );
+          })}
         </div>
       </div>
 
@@ -119,11 +244,11 @@ export default function ChatApp() {
         <div className={styles.chatHeader}>
           <div className={styles.chatHeaderLeft}>
             <div className={styles.contactAvatar} style={{ width: 40, height: 40, backgroundColor: '#cbd5e1' }}>
-              👤
+              {activeContact.avatar}
             </div>
             <div className={styles.chatHeaderInfo}>
-              <span className={styles.chatHeaderName}>918839780947</span>
-              <span className={styles.chatHeaderStatus}>WhatsApp • Online</span>
+              <span className={styles.chatHeaderName}>{activeContact.name}</span>
+              <span className={styles.chatHeaderStatus}>{activeContact.statusText}</span>
             </div>
           </div>
           <div className={styles.chatHeaderRight}>
