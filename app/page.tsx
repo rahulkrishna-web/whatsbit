@@ -18,6 +18,7 @@ type Contact = {
   time: string;
   preview: string;
   statusText: string;
+  responsibleId?: string;
   unreadCount?: number;
 };
 
@@ -29,6 +30,7 @@ const INITIAL_CONTACTS: Contact[] = [
     time: "03/13/2026",
     preview: "Please tell us how we did. Just send 1 if you are satisfied...",
     statusText: "WhatsApp • Online",
+    responsibleId: "anirrudh_sharma",
   },
   {
     id: "anirrudh_sharma",
@@ -37,6 +39,7 @@ const INITIAL_CONTACTS: Contact[] = [
     time: "11:53 AM",
     preview: "Project offer 1...nt.pdf",
     statusText: "WhatsApp • Offline",
+    responsibleId: "pooja_lodhi",
   },
 ];
 
@@ -58,6 +61,13 @@ export default function ChatApp() {
   const [inputText, setInputText] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoaded, setIsLoaded] = useState(false);
+
+  // Users for assignment
+  const [users, setUsers] = useState<any[]>([
+    { id: "anirrudh_sharma", name: "Anirrudh Sharma", avatar: "AS", color: "#10b981" },
+    { id: "pooja_lodhi", name: "Pooja Lodhi", avatar: "PL", color: "#3b82f6" }
+  ]);
+  const [showAssignPopup, setShowAssignPopup] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -127,12 +137,13 @@ export default function ChatApp() {
     if (!isLoaded) return;
     localStorage.setItem("whatsbit_active_chat", activeChatId);
   }, [activeChatId, isLoaded]);
-  // Fetch live contacts from Bitrix24 if available
+  // Fetch live contacts and users from Bitrix24 if available
   useEffect(() => {
     const fetchBitrixContacts = () => {
       const w = window as any;
       if (w.BX24) {
         w.BX24.init(() => {
+          // Fetch CRM contacts
           w.BX24.callMethod(
             "crm.contact.list",
             {
@@ -173,6 +184,7 @@ export default function ChatApp() {
                     time: "Today",
                     preview: phone ? `Phone: ${phone}` : "No phone number available",
                     statusText: "WhatsApp • Offline",
+                    responsibleId: "anirrudh_sharma", // default
                   };
                 });
 
@@ -180,6 +192,35 @@ export default function ChatApp() {
                 // Auto-switch to the first contact if the active ID is still the initial mock ID
                 if (fetchedContacts.length > 0 && activeChatId === "918839780947") {
                   setActiveChatId(fetchedContacts[0].id);
+                }
+              }
+            }
+          );
+
+          // Fetch active users/managers list
+          w.BX24.callMethod(
+            "user.get",
+            { ACTIVE: "Y" },
+            (userResult: any) => {
+              if (!userResult.error()) {
+                const userData = userResult.data();
+                if (Array.isArray(userData) && userData.length > 0) {
+                  const colors = ["#10b981", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
+                  const fetchedUsers = userData.map((u: any, index: number) => {
+                    const initials = `${u.NAME || ""}${u.LAST_NAME || ""}`
+                      .split("")
+                      .filter((char, idx, arr) => idx === 0 || arr[idx - 1] === " ")
+                      .join("")
+                      .toUpperCase()
+                      .slice(0, 2) || "U";
+                    return {
+                      id: u.ID,
+                      name: `${u.NAME || ""} ${u.LAST_NAME || ""}`.trim(),
+                      avatar: initials,
+                      color: colors[index % colors.length]
+                    };
+                  });
+                  setUsers(fetchedUsers);
                 }
               }
             }
@@ -213,6 +254,35 @@ export default function ChatApp() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  const handleReassign = (newUserId: string) => {
+    const assignedUser = users.find(u => u.id === newUserId);
+    const userName = assignedUser ? assignedUser.name : "Not chosen";
+    
+    // Update contact's responsible ID
+    setContacts(prev => prev.map(c => 
+      c.id === activeChatId ? { ...c, responsibleId: newUserId } : c
+    ));
+
+    // Add system notification to messages list
+    const systemMessage: Message = {
+      id: `system-${Date.now()}`,
+      text: `Set responsible: 👤 ${userName}`,
+      isSent: false,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      status: "read",
+    };
+
+    setAllMessages(prev => {
+      const chatMsgs = prev[activeChatId] || [];
+      return {
+        ...prev,
+        [activeChatId]: [...chatMsgs, systemMessage]
+      };
+    });
+
+    setShowAssignPopup(false);
+  };
 
   const handleSend = () => {
     if (!inputText.trim()) return;
@@ -352,7 +422,89 @@ export default function ChatApp() {
               <span className={styles.chatHeaderStatus}>{activeContact.statusText}</span>
             </div>
           </div>
+
           <div className={styles.chatHeaderRight}>
+            {/* Status Dropdown */}
+            <select className={styles.statusSelect} defaultValue="unsorted">
+              <option value="unsorted">Unsorted</option>
+              <option value="in_progress">In Progress</option>
+              <option value="completed">Completed</option>
+            </select>
+
+            {/* Responsible Person Selector */}
+            <div style={{ position: "relative" }}>
+              <button 
+                onClick={() => setShowAssignPopup(!showAssignPopup)}
+                className={styles.responsibleBadgeButton}
+              >
+                <div 
+                  className={styles.responsibleAvatar} 
+                  style={{ backgroundColor: users.find(u => u.id === activeContact.responsibleId)?.color || "#10b981" }}
+                >
+                  {users.find(u => u.id === activeContact.responsibleId)?.avatar || "AS"}
+                </div>
+                <span className={styles.caret}>▼</span>
+              </button>
+
+              {showAssignPopup && (
+                <div className={styles.assignPopup}>
+                  <div className={styles.popupField}>
+                    <label>Level</label>
+                    <select className={styles.popupSelect}>
+                      <option>Not chosen</option>
+                      <option>High Priority</option>
+                      <option>Medium Priority</option>
+                      <option>Low Priority</option>
+                    </select>
+                  </div>
+                  
+                  <div className={styles.popupField}>
+                    <label>Responsible</label>
+                    <select 
+                      value={activeContact.responsibleId || ""} 
+                      onChange={(e) => handleReassign(e.target.value)}
+                      className={styles.popupSelect}
+                    >
+                      <option value="">Not chosen</option>
+                      {users.map(u => (
+                        <option key={u.id} value={u.id}>{u.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className={styles.popupField}>
+                    <label>Producer</label>
+                    <select className={styles.popupSelect}>
+                      <option>Not chosen</option>
+                      {users.map(u => (
+                        <option key={u.id} value={u.id}>{u.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className={styles.popupField}>
+                    <label>Accomplices</label>
+                    <select className={styles.popupSelect}>
+                      <option>Not chosen</option>
+                      {users.map(u => (
+                        <option key={u.id} value={u.id}>{u.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className={styles.popupField}>
+                    <label>Auditor</label>
+                    <select className={styles.popupSelect}>
+                      <option>Not chosen</option>
+                      {users.map(u => (
+                        <option key={u.id} value={u.id}>{u.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <button style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '18px', color: '#64748b' }}>⋮</button>
           </div>
         </div>
@@ -364,21 +516,33 @@ export default function ChatApp() {
             </span>
           </div>
 
-          {messages.map((msg) => (
-            <div key={msg.id} className={`${styles.messageWrapper} ${msg.isSent ? styles.sent : styles.received}`}>
-              <div className={styles.messageBubble}>
-                {msg.text}
-                <div className={styles.messageFooter}>
-                  <span className={styles.messageTime}>{msg.time}</span>
-                  {msg.isSent && (
-                    <span className={styles.messageStatus}>
-                      {msg.status === "read" ? "✓✓" : "✓"}
-                    </span>
-                  )}
+          {messages.map((msg) => {
+            const isSystem = msg.text.startsWith("Set responsible:") || msg.id.startsWith("system-");
+            if (isSystem) {
+              return (
+                <div key={msg.id} style={{ textAlign: 'center', margin: '12px 0' }}>
+                  <span style={{ backgroundColor: '#fff', padding: '6px 12px', borderRadius: '16px', fontSize: '12px', color: '#64748b', boxShadow: '0 1px 1px rgba(0,0,0,0.05)' }}>
+                    {msg.text} <span style={{ fontSize: '10px', marginLeft: '6px', opacity: 0.8 }}>{msg.time}</span>
+                  </span>
+                </div>
+              );
+            }
+            return (
+              <div key={msg.id} className={`${styles.messageWrapper} ${msg.isSent ? styles.sent : styles.received}`}>
+                <div className={styles.messageBubble}>
+                  {msg.text}
+                  <div className={styles.messageFooter}>
+                    <span className={styles.messageTime}>{msg.time}</span>
+                    {msg.isSent && (
+                      <span className={styles.messageStatus}>
+                        {msg.status === "read" ? "✓✓" : "✓"}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           <div ref={messagesEndRef} />
         </div>
 

@@ -292,3 +292,95 @@
   height: 20px;
   fill: currentColor;
 }
+
+.statusSelect {
+  padding: 6px 12px;
+  border-radius: 16px;
+  border: 1px solid #cbd5e1;
+  background-color: #f1f5f9;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 500;
+  outline: none;
+  cursor: pointer;
+  margin-right: 8px;
+}
+
+.responsibleBadgeButton {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 16px;
+  border: 1px solid #cbd5e1;
+  background-color: #fff;
+  cursor: pointer;
+  outline: none;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.2s;
+  margin-right: 8px;
+}
+
+.responsibleBadgeButton:hover {
+  background-color: #f1f5f9;
+}
+
+.responsibleAvatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background-color: #10b981;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.caret {
+  font-size: 8px;
+  color: #64748b;
+}
+
+.assignPopup {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 220px;
+  background-color: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  padding: 12px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.popupField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.popupField label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  text-align: left;
+}
+
+.popupSelect {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background-color: #fff;
+  color: #334155;
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+}
