@@ -384,3 +384,10 @@
   outline: none;
   cursor: pointer;
 }
+
+.chatHeaderRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
