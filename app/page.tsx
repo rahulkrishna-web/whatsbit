@@ -65,17 +65,25 @@ export default function ChatApp() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  // Initialize Bitrix24 SDK if inside iframe
+  // Initialize Bitrix24 SDK dynamically if inside iframe
   useEffect(() => {
-    const w = window as any;
-    if (w.BX24) {
-      try {
-        w.BX24.init(() => {
-          w.BX24.fitWindow();
-        });
-      } catch (e) {
-        console.error("Failed to initialize Bitrix24 client SDK", e);
-      }
+    if (typeof window !== "undefined" && window.self !== window.top) {
+      const script = document.createElement("script");
+      script.src = "https://api.bitrix24.com/api/v1/";
+      script.async = true;
+      script.onload = () => {
+        const w = window as any;
+        if (w.BX24) {
+          try {
+            w.BX24.init(() => {
+              w.BX24.fitWindow();
+            });
+          } catch (e) {
+            console.error("Failed to initialize Bitrix24 client SDK", e);
+          }
+        }
+      };
+      document.head.appendChild(script);
     }
   }, []);
 
@@ -119,9 +127,88 @@ export default function ChatApp() {
     if (!isLoaded) return;
     localStorage.setItem("whatsbit_active_chat", activeChatId);
   }, [activeChatId, isLoaded]);
+  // Fetch live contacts from Bitrix24 if available
+  useEffect(() => {
+    const fetchBitrixContacts = () => {
+      const w = window as any;
+      if (w.BX24) {
+        w.BX24.init(() => {
+          w.BX24.callMethod(
+            "crm.contact.list",
+            {
+              order: { "DATE_CREATE": "DESC" },
+              select: ["ID", "NAME", "LAST_NAME", "PHONE"]
+            },
+            (result: any) => {
+              if (result.error()) {
+                console.error("Error fetching Bitrix24 contacts:", result.error());
+                return;
+              }
+
+              const data = result.data();
+              if (Array.isArray(data) && data.length > 0) {
+                const fetchedContacts: Contact[] = data.map((item: any) => {
+                  const firstName = item.NAME || "";
+                  const lastName = item.LAST_NAME || "";
+                  const fullName = `${firstName} ${lastName}`.trim() || `Contact #${item.ID}`;
+                  
+                  // Extract first phone number
+                  let phone = "";
+                  if (Array.isArray(item.PHONE) && item.PHONE.length > 0) {
+                    phone = item.PHONE[0].VALUE || "";
+                  }
+                  
+                  // Initials for avatar
+                  const initials = fullName
+                    .split(" ")
+                    .map((n: string) => n[0])
+                    .join("")
+                    .toUpperCase()
+                    .slice(0, 2) || "👤";
+
+                  return {
+                    id: phone || item.ID, // Fallback to ID if no phone
+                    name: fullName,
+                    avatar: initials.match(/[a-zA-Z]/) ? initials : "👤",
+                    time: "Today",
+                    preview: phone ? `Phone: ${phone}` : "No phone number available",
+                    statusText: "WhatsApp • Offline",
+                  };
+                });
+
+                setContacts(fetchedContacts);
+                // Auto-switch to the first contact if the active ID is still the initial mock ID
+                if (fetchedContacts.length > 0 && activeChatId === "918839780947") {
+                  setActiveChatId(fetchedContacts[0].id);
+                }
+              }
+            }
+          );
+        });
+      }
+    };
+
+    const timer = setInterval(() => {
+      const w = window as any;
+      if (w.BX24) {
+        clearInterval(timer);
+        fetchBitrixContacts();
+      }
+    }, 500);
+
+    return () => clearInterval(timer);
+  }, [activeChatId]);
 
   const activeContact = contacts.find((c) => c.id === activeChatId) || contacts[0] || INITIAL_CONTACTS[0];
-  const messages = allMessages[activeChatId] || [];
+  const messages = allMessages[activeChatId] || (activeContact ? [
+    {
+      id: "welcome-msg",
+      text: `Hello ${activeContact.name}! How can we help you today?`,
+      isSent: false,
+      time: activeContact.time || "12:00 PM",
+      status: "read"
+    }
+  ] : []);
 
   useEffect(() => {
     scrollToBottom();
