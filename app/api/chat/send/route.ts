@@ -5,7 +5,7 @@ import { doc, setDoc, addDoc, collection, serverTimestamp } from "firebase/fires
 
 export async function POST(request: Request) {
   try {
-    const { contactId, text, useTemplate } = await request.json();
+    const { contactId, text, useTemplate, templateSid: customTemplateSid } = await request.json();
     
     if (!contactId || !text) {
       return NextResponse.json({ success: false, error: "Missing contactId or text" }, { status: 400 });
@@ -17,7 +17,8 @@ export async function POST(request: Request) {
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
     const authToken = process.env.TWILIO_AUTH_TOKEN;
     const senderNumber = process.env.TWILIO_SENDER_NUMBER || "whatsapp:+918890211444";
-    const templateSid = process.env.TWILIO_WELCOME_TEMPLATE_SID || "HX68dfb84bba8143c6d42fb9d2fb3a9af6";
+    const defaultTemplateSid = process.env.TWILIO_WELCOME_TEMPLATE_SID || "HX68dfb84bba8143c6d42fb9d2fb3a9af6";
+    const selectedTemplateSid = customTemplateSid || defaultTemplateSid;
 
     let twilioMessageSid = null;
     let errorMsg = null;
@@ -31,7 +32,7 @@ export async function POST(request: Request) {
         };
 
         if (useTemplate) {
-          payload.contentSid = templateSid;
+          payload.contentSid = selectedTemplateSid;
         } else {
           payload.body = text;
         }
@@ -47,10 +48,8 @@ export async function POST(request: Request) {
       twilioMessageSid = `mock-${Date.now()}`;
     }
 
-    // Fallback template body if Twilio is bypassed or template is selected
-    const finalMsgText = useTemplate 
-      ? "Hello, Thank you for connecting with RS Choyal Group. Please let us know how we can assist you today?"
-      : text;
+    // Use the passed text directly as final stored message content
+    const finalMsgText = text;
 
     // Write message to subcollection contacts/{contactId}/messages
     const messagesRef = collection(db, "contacts", contactId, "messages");

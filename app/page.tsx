@@ -68,6 +68,15 @@ const INITIAL_MESSAGES: Record<string, Message[]> = {
   ],
 };
 
+const PREDEFINED_TEMPLATES = [
+  {
+    id: "welcome_choyal",
+    name: "RS Choyal Welcome",
+    text: "Hello, Thank you for connecting with RS Choyal Group. Please let us know how we can assist you today?",
+    templateSid: "HX68dfb84bba8143c6d42fb9d2fb3a9af6",
+  }
+];
+
 export default function ChatApp() {
   const [contacts, setContacts] = useState<Contact[]>(INITIAL_CONTACTS);
   const [activeChatId, setActiveChatId] = useState<string>("918839780947");
@@ -81,6 +90,7 @@ export default function ChatApp() {
     { id: "pooja_lodhi", name: "Pooja Lodhi", avatar: "PL", color: "#3b82f6" }
   ]);
   const [showAssignPopup, setShowAssignPopup] = useState(false);
+  const [showTemplateDropdown, setShowTemplateDropdown] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -368,6 +378,28 @@ export default function ChatApp() {
     setShowAssignPopup(false);
   };
 
+  const handleSendTemplate = async (template: { name: string; text: string; templateSid: string }) => {
+    try {
+      const response = await fetch("/api/chat/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contactId: activeChatId,
+          text: template.text,
+          useTemplate: true,
+          templateSid: template.templateSid,
+        }),
+      });
+      const result = await response.json();
+      if (!result.success) {
+        console.error("Failed to send template via Twilio API:", result.error);
+      }
+    } catch (err) {
+      console.error("Error calling send template API:", err);
+    }
+    setShowTemplateDropdown(false);
+  };
+
   const handleSend = async () => {
     if (!inputText.trim()) return;
 
@@ -610,6 +642,77 @@ export default function ChatApp() {
 
         <div className={styles.chatInputArea}>
           <button style={{ border: 'none', background: 'none', fontSize: '20px', cursor: 'pointer' }}>📎</button>
+          
+          {/* Templates Trigger Button */}
+          <div style={{ position: "relative" }}>
+            <button 
+              onClick={() => setShowTemplateDropdown(!showTemplateDropdown)} 
+              style={{ 
+                border: 'none', 
+                background: '#cbd5e1', 
+                color: '#334155',
+                padding: '6px 12px',
+                borderRadius: '16px',
+                fontSize: '12px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                outline: 'none'
+              }}
+            >
+              📋 Templates <span style={{ fontSize: '8px' }}>▼</span>
+            </button>
+
+            {showTemplateDropdown && (
+              <div style={{
+                position: 'absolute',
+                bottom: 'calc(100% + 8px)',
+                left: 0,
+                width: '280px',
+                backgroundColor: '#fff',
+                border: '1px solid #e2e8f0',
+                borderRadius: '8px',
+                boxShadow: '0 -10px 15px -3px rgba(0, 0, 0, 0.1), 0 -4px 6px -2px rgba(0, 0, 0, 0.05)',
+                padding: '8px',
+                zIndex: 100,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '4px'
+              }}>
+                <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', padding: '4px 8px', textTransform: 'uppercase', textAlign: 'left' }}>
+                  Select WhatsApp Template
+                </div>
+                {PREDEFINED_TEMPLATES.map((tmpl) => (
+                  <button
+                    key={tmpl.id}
+                    onClick={() => handleSendTemplate(tmpl)}
+                    style={{
+                      border: 'none',
+                      background: 'none',
+                      textAlign: 'left',
+                      padding: '8px',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '13px',
+                      color: '#1e293b',
+                      transition: 'background-color 0.2s',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f1f5f9')}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                    title={tmpl.text}
+                  >
+                    <div style={{ fontWeight: '600', marginBottom: '2px' }}>{tmpl.name}</div>
+                    <div style={{ fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {tmpl.text}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           <input
             type="text"
             placeholder="Type a message..."
