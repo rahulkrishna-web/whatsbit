@@ -25,6 +25,7 @@ import {
   orderBy, 
   doc, 
   setDoc, 
+  getDoc,
   addDoc, 
   updateDoc, 
   serverTimestamp 
@@ -39,6 +40,7 @@ type Message = {
   mediaUrl?: string;
   errorCode?: string;
   errorMessage?: string;
+  timestamp?: any;
 };
 
 type Contact = {
@@ -182,6 +184,7 @@ export default function ChatApp() {
           mediaUrl: data.mediaUrl || "",
           errorCode: data.errorCode || "",
           errorMessage: data.errorMessage || "",
+          timestamp: data.timestamp,
         });
       });
 
@@ -275,8 +278,8 @@ export default function ChatApp() {
                     name: fullName,
                     avatar: initials.match(/[a-zA-Z]/) ? initials : "👤",
                     time: "Today",
-                    preview: cleanedPhone ? `Phone: ${cleanedPhone}` : "No phone number available",
-                    statusText: "WhatsApp • Offline",
+                    preview: "No messages yet",
+                    statusText: "WhatsApp • Unsorted",
                     responsibleId: "anirrudh_sharma", // default
                   };
                 });
@@ -284,15 +287,24 @@ export default function ChatApp() {
                 // Sync fetched Bitrix24 contacts to Firestore
                 fetchedContacts.forEach(async (c) => {
                   const contactRef = doc(db, "contacts", c.id);
-                  await setDoc(contactRef, {
-                    id: c.id,
-                    name: c.name,
-                    avatar: c.avatar,
-                    preview: c.preview,
-                    statusText: c.statusText,
-                    responsibleId: c.responsibleId || "anirrudh_sharma",
-                    lastUpdated: serverTimestamp(),
-                  }, { merge: true });
+                  const docSnap = await getDoc(contactRef);
+                  if (!docSnap.exists()) {
+                    await setDoc(contactRef, {
+                      id: c.id,
+                      name: c.name,
+                      avatar: c.avatar,
+                      time: c.time,
+                      preview: c.preview,
+                      statusText: c.statusText,
+                      responsibleId: c.responsibleId,
+                      lastUpdated: serverTimestamp(),
+                    });
+                  } else {
+                    await updateDoc(contactRef, {
+                      name: c.name,
+                      avatar: c.avatar,
+                    });
+                  }
                 });
 
                 // Auto-switch to first contact on initial view
@@ -360,6 +372,36 @@ export default function ChatApp() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  const getStatusLabel = (contact: Contact) => {
+    if (contact.statusSelect) {
+      switch (contact.statusSelect) {
+        case "in_progress": return "In Progress";
+        case "completed": return "Completed";
+        case "unsorted": return "Unsorted";
+      }
+    }
+    if (contact.statusText) {
+      return contact.statusText.replace("WhatsApp • ", "");
+    }
+    return "Unsorted";
+  };
+
+  const groupMessagesByDate = (msgs: Message[]) => {
+    const groups: { [key: string]: Message[] } = {};
+    msgs.forEach((m) => {
+      let dateStr = "Today";
+      if (m.timestamp) {
+        const date = m.timestamp.toDate ? m.timestamp.toDate() : new Date(m.timestamp.seconds * 1000);
+        dateStr = date.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
+      }
+      if (!groups[dateStr]) {
+        groups[dateStr] = [];
+      }
+      groups[dateStr].push(m);
+    });
+    return groups;
+  };
 
   const handleStatusChange = async (newStatus: string) => {
     if (!activeChatId) return;
@@ -527,9 +569,23 @@ export default function ChatApp() {
             </div>
             <div className={styles.chatHeaderInfo}>
               <span className={styles.chatHeaderName}>{activeContact.name}</span>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <span style={{ fontSize: '12px', fontWeight: '600', color: '#64748b' }}>{activeContact.id}</span>
-                <span className={styles.chatHeaderStatus}>{activeContact.statusText}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
+                <span style={{ fontSize: '12px', fontWeight: '500', color: '#64748b' }}>{activeContact.id}</span>
+                <span style={{ fontSize: '10px', color: '#cbd5e1' }}>|</span>
+                <span style={{
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  padding: '2px 8px',
+                  borderRadius: '12px',
+                  backgroundColor: 
+                    activeContact.statusSelect === 'completed' ? '#ecfdf5' : 
+                    activeContact.statusSelect === 'in_progress' ? '#eff6ff' : '#f1f5f9',
+                  color: 
+                    activeContact.statusSelect === 'completed' ? '#047857' : 
+                    activeContact.statusSelect === 'in_progress' ? '#1d4ed8' : '#475569',
+                }}>
+                  {getStatusLabel(activeContact)}
+                </span>
               </div>
             </div>
           </div>
@@ -625,57 +681,61 @@ export default function ChatApp() {
         </div>
 
         <div className={styles.messagesContainer}>
-          <div style={{ textAlign: 'center', margin: '16px 0' }}>
-            <span style={{ backgroundColor: '#fff', padding: '6px 12px', borderRadius: '16px', fontSize: '12px', color: '#64748b', boxShadow: '0 1px 1px rgba(0,0,0,0.05)' }}>
-              Monday
-            </span>
-          </div>
-
-          {messages.map((msg) => {
-            const isSystem = msg.text.startsWith("Set responsible:") || msg.id.startsWith("system-");
-            if (isSystem) {
-              return (
-                <div key={msg.id} style={{ textAlign: 'center', margin: '12px 0' }}>
-                  <span style={{ backgroundColor: '#fff', padding: '6px 12px', borderRadius: '16px', fontSize: '12px', color: '#64748b', boxShadow: '0 1px 1px rgba(0,0,0,0.05)' }}>
-                    {msg.text} <span style={{ fontSize: '10px', marginLeft: '6px', opacity: 0.8 }}>{msg.time}</span>
-                  </span>
-                </div>
-              );
-            }
-            return (
-              <div key={msg.id} className={`${styles.messageWrapper} ${msg.isSent ? styles.sent : styles.received}`}>
-                <div className={styles.messageBubble}>
-                  {msg.mediaUrl && (
-                    <img 
-                      src={msg.mediaUrl} 
-                      alt="Attachment" 
-                      style={{ maxWidth: "100%", maxHeight: "200px", borderRadius: "6px", display: "block", marginBottom: "8px", objectFit: "cover" }} 
-                    />
-                  )}
-                  {msg.text && <div>{msg.text}</div>}
-                  <div className={styles.messageFooter}>
-                    <span className={styles.messageTime}>{msg.time}</span>
-                    {msg.isSent && (
-                      <span className={styles.messageStatus} style={{ color: msg.status === "failed" ? "#ef4444" : undefined }}>
-                        {msg.status === "failed" ? (
-                          "⚠️ Failed"
-                        ) : msg.status === "read" ? (
-                          "✓✓"
-                        ) : (
-                          "✓"
-                        )}
-                      </span>
-                    )}
-                  </div>
-                  {msg.status === "failed" && msg.errorMessage && (
-                    <div style={{ color: "#ef4444", fontSize: "10px", marginTop: "6px", borderTop: "1px dashed rgba(239, 68, 68, 0.3)", paddingTop: "4px" }}>
-                      Twilio Error: {msg.errorMessage} {msg.errorCode ? `(Code ${msg.errorCode})` : ""}
-                    </div>
-                  )}
-                </div>
+          {Object.entries(groupMessagesByDate(messages)).map(([dateStr, dayMessages]) => (
+            <div key={dateStr}>
+              <div style={{ textAlign: 'center', margin: '16px 0' }}>
+                <span style={{ backgroundColor: '#fff', padding: '6px 12px', borderRadius: '16px', fontSize: '12px', color: '#64748b', boxShadow: '0 1px 1px rgba(0,0,0,0.05)' }}>
+                  {dateStr}
+                </span>
               </div>
-            );
-          })}
+
+              {dayMessages.map((msg) => {
+                const isSystem = msg.text.startsWith("Set responsible:") || msg.id.startsWith("system-");
+                if (isSystem) {
+                  return (
+                    <div key={msg.id} style={{ textAlign: 'center', margin: '12px 0' }}>
+                      <span style={{ backgroundColor: '#fff', padding: '6px 12px', borderRadius: '16px', fontSize: '12px', color: '#64748b', boxShadow: '0 1px 1px rgba(0,0,0,0.05)' }}>
+                        {msg.text} <span style={{ fontSize: '10px', marginLeft: '6px', opacity: 0.8 }}>{msg.time}</span>
+                      </span>
+                    </div>
+                  );
+                }
+                return (
+                  <div key={msg.id} className={`${styles.messageWrapper} ${msg.isSent ? styles.sent : styles.received}`}>
+                    <div className={styles.messageBubble}>
+                      {msg.mediaUrl && (
+                        <img 
+                          src={msg.mediaUrl} 
+                          alt="Attachment" 
+                          style={{ maxWidth: "100%", maxHeight: "200px", borderRadius: "6px", display: "block", marginBottom: "8px", objectFit: "cover" }} 
+                        />
+                      )}
+                      {msg.text && <div>{msg.text}</div>}
+                      <div className={styles.messageFooter}>
+                        <span className={styles.messageTime}>{msg.time}</span>
+                        {msg.isSent && (
+                          <span className={styles.messageStatus} style={{ color: msg.status === "failed" ? "#ef4444" : undefined }}>
+                            {msg.status === "failed" ? (
+                              "⚠️ Failed"
+                            ) : msg.status === "read" ? (
+                              "✓✓"
+                            ) : (
+                              "✓"
+                            )}
+                          </span>
+                        )}
+                      </div>
+                      {msg.status === "failed" && msg.errorMessage && (
+                        <div style={{ color: "#ef4444", fontSize: "10px", marginTop: "6px", borderTop: "1px dashed rgba(239, 68, 68, 0.3)", paddingTop: "4px" }}>
+                          Twilio Error: {msg.errorMessage} {msg.errorCode ? `(Code ${msg.errorCode})` : ""}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
           <div ref={messagesEndRef} />
         </div>
 
