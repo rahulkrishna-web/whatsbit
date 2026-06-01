@@ -20,8 +20,10 @@ type Message = {
   text: string;
   isSent: boolean;
   time: string;
-  status: "sent" | "delivered" | "read";
+  status: "sent" | "delivered" | "read" | "failed";
   mediaUrl?: string;
+  errorCode?: string;
+  errorMessage?: string;
 };
 
 type Contact = {
@@ -73,7 +75,7 @@ const PREDEFINED_TEMPLATES = [
     id: "welcome_choyal",
     name: "RS Choyal Welcome",
     text: "Hello, Thank you for connecting with RS Choyal Group. Please let us know how we can assist you today?",
-    templateSid: "HX68dfb84bba8143c6d42fb9d2fb3a9af6",
+    templateSid: "HX68dfb84bba8143c63d42fb9d3a3a9af6",
   }
 ];
 
@@ -162,6 +164,8 @@ export default function ChatApp() {
           time: data.time || "",
           status: data.status || "sent",
           mediaUrl: data.mediaUrl || "",
+          errorCode: data.errorCode || "",
+          errorMessage: data.errorMessage || "",
         });
       });
 
@@ -628,11 +632,22 @@ export default function ChatApp() {
                   <div className={styles.messageFooter}>
                     <span className={styles.messageTime}>{msg.time}</span>
                     {msg.isSent && (
-                      <span className={styles.messageStatus}>
-                        {msg.status === "read" ? "✓✓" : "✓"}
+                      <span className={styles.messageStatus} style={{ color: msg.status === "failed" ? "#ef4444" : undefined }}>
+                        {msg.status === "failed" ? (
+                          "⚠️ Failed"
+                        ) : msg.status === "read" ? (
+                          "✓✓"
+                        ) : (
+                          "✓"
+                        )}
                       </span>
                     )}
                   </div>
+                  {msg.status === "failed" && msg.errorMessage && (
+                    <div style={{ color: "#ef4444", fontSize: "10px", marginTop: "6px", borderTop: "1px dashed rgba(239, 68, 68, 0.3)", paddingTop: "4px" }}>
+                      Twilio Error: {msg.errorMessage} {msg.errorCode ? `(Code ${msg.errorCode})` : ""}
+                    </div>
+                  )}
                 </div>
               </div>
             );

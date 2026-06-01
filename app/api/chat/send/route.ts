@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
     const authToken = process.env.TWILIO_AUTH_TOKEN;
     const senderNumber = process.env.TWILIO_SENDER_NUMBER || "whatsapp:+918890211444";
-    const defaultTemplateSid = process.env.TWILIO_WELCOME_TEMPLATE_SID || "HX68dfb84bba8143c6d42fb9d2fb3a9af6";
+    const defaultTemplateSid = process.env.TWILIO_WELCOME_TEMPLATE_SID || "HX68dfb84bba8143c63d42fb9d3a3a9af6";
     const selectedTemplateSid = customTemplateSid || defaultTemplateSid;
 
     let twilioMessageSid = null;

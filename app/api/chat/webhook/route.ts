@@ -35,16 +35,26 @@ export async function POST(request: Request) {
         
         if (!querySnapshot.empty) {
           const docRef = querySnapshot.docs[0].ref;
-          let statusVal: "sent" | "delivered" | "read" = "sent";
+          let statusVal: "sent" | "delivered" | "read" | "failed" = "sent";
           if (messageStatus === "read") {
             statusVal = "read";
           } else if (messageStatus === "delivered") {
             statusVal = "delivered";
+          } else if (messageStatus === "failed" || messageStatus === "undelivered") {
+            statusVal = "failed";
           }
           
-          await updateDoc(docRef, {
+          const updatePayload: any = {
             status: statusVal
-          });
+          };
+          if (data.ErrorCode) {
+            updatePayload.errorCode = String(data.ErrorCode);
+          }
+          if (data.ErrorMessage) {
+            updatePayload.errorMessage = String(data.ErrorMessage);
+          }
+          
+          await updateDoc(docRef, updatePayload);
         }
       }
       return new NextResponse("<Response></Response>", {
