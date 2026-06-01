@@ -2,6 +2,18 @@
 
 import { useState, useRef, useEffect } from "react";
 import styles from "./page.module.css";
+import { db } from "../lib/firebase";
+import { 
+  collection, 
+  onSnapshot, 
+  query, 
+  orderBy, 
+  doc, 
+  setDoc, 
+  addDoc, 
+  updateDoc, 
+  serverTimestamp 
+} from "firebase/firestore";
 
 type Message = {
   id: string;
@@ -9,6 +21,7 @@ type Message = {
   isSent: boolean;
   time: string;
   status: "sent" | "delivered" | "read";
+  mediaUrl?: string;
 };
 
 type Contact = {
@@ -20,6 +33,7 @@ type Contact = {
   statusText: string;
   responsibleId?: string;
   unreadCount?: number;
+  statusSelect?: string;
 };
 
 const INITIAL_CONTACTS: Contact[] = [
@@ -60,7 +74,6 @@ export default function ChatApp() {
   const [allMessages, setAllMessages] = useState<Record<string, Message[]>>(INITIAL_MESSAGES);
   const [inputText, setInputText] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [isLoaded, setIsLoaded] = useState(false);
 
   // Users for assignment
   const [users, setUsers] = useState<any[]>([
@@ -97,47 +110,96 @@ export default function ChatApp() {
     }
   }, []);
 
-  // Load state from localStorage on mount
+  // 1. Real-time Firestore listener for contacts list
   useEffect(() => {
-    const savedContacts = localStorage.getItem("whatsbit_contacts");
-    const savedMessages = localStorage.getItem("whatsbit_messages");
+    const q = query(collection(db, "contacts"), orderBy("lastUpdated", "desc"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const fetched: Contact[] = [];
+      snapshot.forEach((doc) => {
+        fetched.push({ id: doc.id, ...doc.data() } as Contact);
+      });
+      
+      if (fetched.length > 0) {
+        setContacts(fetched);
+      } else {
+        // Seed initial mock contacts if Firestore is completely empty
+        INITIAL_CONTACTS.forEach(async (c) => {
+          await setDoc(doc(db, "contacts", c.id), {
+            ...c,
+            lastUpdated: serverTimestamp(),
+          });
+        });
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // 2. Real-time Firestore listener for active chat messages
+  useEffect(() => {
+    if (!activeChatId) return;
+
+    const messagesRef = collection(db, "contacts", activeChatId, "messages");
+    const q = query(messagesRef, orderBy("timestamp", "asc"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const msgs: Message[] = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        msgs.push({
+          id: doc.id,
+          text: data.text || "",
+          isSent: !!data.isSent,
+          time: data.time || "",
+          status: data.status || "sent",
+          mediaUrl: data.mediaUrl || "",
+        });
+      });
+
+      // If no messages exist in Firestore for this contact, seed initial messages
+      if (msgs.length === 0) {
+        const initialMsgs = INITIAL_MESSAGES[activeChatId] || [
+          {
+            text: "Hello! How can we assist you today?",
+            isSent: false,
+            time: "12:00 PM",
+            status: "read"
+          }
+        ];
+        initialMsgs.forEach(async (m, index) => {
+          await addDoc(collection(db, "contacts", activeChatId, "messages"), {
+            text: m.text,
+            isSent: m.isSent,
+            time: m.time,
+            status: m.status,
+            twilioSid: `mock-seed-${index}-${Date.now()}`,
+            timestamp: serverTimestamp(),
+          });
+        });
+      } else {
+        setAllMessages((prev) => ({
+          ...prev,
+          [activeChatId]: msgs,
+        }));
+      }
+    });
+
+    return () => unsubscribe();
+  }, [activeChatId]);
+
+  // Load last active chat from localStorage on mount
+  useEffect(() => {
     const savedActiveChat = localStorage.getItem("whatsbit_active_chat");
-    if (savedContacts) {
-      try {
-        setContacts(JSON.parse(savedContacts));
-      } catch (e) {
-        console.error("Failed to parse contacts from localStorage", e);
-      }
-    }
-    if (savedMessages) {
-      try {
-        setAllMessages(JSON.parse(savedMessages));
-      } catch (e) {
-        console.error("Failed to parse messages from localStorage", e);
-      }
-    }
     if (savedActiveChat) {
       setActiveChatId(savedActiveChat);
     }
-    setIsLoaded(true);
   }, []);
 
-  // Save to localStorage on changes after load
+  // Save active chat to localStorage
   useEffect(() => {
-    if (!isLoaded) return;
-    localStorage.setItem("whatsbit_contacts", JSON.stringify(contacts));
-  }, [contacts, isLoaded]);
-
-  useEffect(() => {
-    if (!isLoaded) return;
-    localStorage.setItem("whatsbit_messages", JSON.stringify(allMessages));
-  }, [allMessages, isLoaded]);
-
-  useEffect(() => {
-    if (!isLoaded) return;
     localStorage.setItem("whatsbit_active_chat", activeChatId);
-  }, [activeChatId, isLoaded]);
-  // Fetch live contacts and users from Bitrix24 if available
+  }, [activeChatId]);
+
+  // Fetch live contacts and users from Bitrix24 and sync to Firestore
   useEffect(() => {
     const fetchBitrixContacts = () => {
       const w = window as any;
@@ -188,8 +250,21 @@ export default function ChatApp() {
                   };
                 });
 
-                setContacts(fetchedContacts);
-                // Auto-switch to the first contact if the active ID is still the initial mock ID
+                // Sync fetched Bitrix24 contacts to Firestore
+                fetchedContacts.forEach(async (c) => {
+                  const contactRef = doc(db, "contacts", c.id);
+                  await setDoc(contactRef, {
+                    id: c.id,
+                    name: c.name,
+                    avatar: c.avatar,
+                    preview: c.preview,
+                    statusText: c.statusText,
+                    responsibleId: c.responsibleId || "anirrudh_sharma",
+                    lastUpdated: serverTimestamp(),
+                  }, { merge: true });
+                });
+
+                // Auto-switch to first contact on initial view
                 if (fetchedContacts.length > 0 && activeChatId === "918839780947") {
                   setActiveChatId(fetchedContacts[0].id);
                 }
@@ -197,7 +272,7 @@ export default function ChatApp() {
             }
           );
 
-          // Fetch active users/managers list
+          // Fetch active users/managers list from Bitrix24
           w.BX24.callMethod(
             "user.get",
             { ACTIVE: "Y" },
@@ -255,94 +330,70 @@ export default function ChatApp() {
     scrollToBottom();
   }, [messages]);
 
-  const handleReassign = (newUserId: string) => {
+  const handleStatusChange = async (newStatus: string) => {
+    if (!activeChatId) return;
+    const contactRef = doc(db, "contacts", activeChatId);
+    let statusTextVal = "WhatsApp • Unsorted";
+    if (newStatus === "in_progress") {
+      statusTextVal = "WhatsApp • In Progress";
+    } else if (newStatus === "completed") {
+      statusTextVal = "WhatsApp • Completed";
+    }
+
+    await updateDoc(contactRef, {
+      statusText: statusTextVal,
+      statusSelect: newStatus,
+    });
+  };
+
+  const handleReassign = async (newUserId: string) => {
     const assignedUser = users.find(u => u.id === newUserId);
     const userName = assignedUser ? assignedUser.name : "Not chosen";
     
-    // Update contact's responsible ID
-    setContacts(prev => prev.map(c => 
-      c.id === activeChatId ? { ...c, responsibleId: newUserId } : c
-    ));
+    // Update contact's responsible ID in Firestore
+    const contactRef = doc(db, "contacts", activeChatId);
+    await updateDoc(contactRef, { responsibleId: newUserId });
 
-    // Add system notification to messages list
-    const systemMessage: Message = {
-      id: `system-${Date.now()}`,
+    // Add system notification to messages list in Firestore
+    const messagesRef = collection(db, "contacts", activeChatId, "messages");
+    await addDoc(messagesRef, {
       text: `Set responsible: 👤 ${userName}`,
       isSent: false,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       status: "read",
-    };
-
-    setAllMessages(prev => {
-      const chatMsgs = prev[activeChatId] || [];
-      return {
-        ...prev,
-        [activeChatId]: [...chatMsgs, systemMessage]
-      };
+      timestamp: serverTimestamp(),
+      twilioSid: `system-${Date.now()}`
     });
 
     setShowAssignPopup(false);
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!inputText.trim()) return;
 
     const messageText = inputText;
-    const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      text: messageText,
-      isSent: true,
-      time: timeString,
-      status: "sent",
-    };
+    setInputText(""); // Clear input early for responsive feel
 
-    setAllMessages((prev) => {
-      const chatMsgs = prev[activeChatId] || [];
-      return {
-        ...prev,
-        [activeChatId]: [...chatMsgs, newMessage],
-      };
-    });
+    // Check if we are sending the welcome template (keyword trigger or matching text pattern)
+    const isWelcomeTemplate = messageText.toLowerCase().includes("welcome") || messageText.toLowerCase().includes("choyal");
 
-    setContacts((prevContacts) =>
-      prevContacts.map((c) =>
-        c.id === activeChatId
-          ? { ...c, preview: messageText, time: timeString }
-          : c
-      )
-    );
-
-    setInputText("");
-
-    // Simulate reply after 2 seconds
-    const targetChatId = activeChatId;
-    setTimeout(() => {
-      const replyTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const replyMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        text: "Thank you for reaching out! We've received your message and will get back to you shortly.",
-        isSent: false,
-        time: replyTime,
-        status: "read",
-      };
-
-      setAllMessages((prev) => {
-        const chatMsgs = prev[targetChatId] || [];
-        return {
-          ...prev,
-          [targetChatId]: [...chatMsgs, replyMessage],
-        };
+    try {
+      const response = await fetch("/api/chat/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contactId: activeChatId,
+          text: messageText,
+          useTemplate: isWelcomeTemplate,
+        }),
       });
-
-      setContacts((prevContacts) =>
-        prevContacts.map((c) =>
-          c.id === targetChatId
-            ? { ...c, preview: replyMessage.text, time: replyTime }
-            : c
-        )
-      );
-    }, 2000);
+      const result = await response.json();
+      if (!result.success) {
+        console.error("Failed to send message via Twilio API:", result.error);
+      }
+    } catch (err) {
+      console.error("Error calling send message API:", err);
+    }
   };
 
   const filteredContacts = contacts.filter((c) =>
@@ -425,7 +476,11 @@ export default function ChatApp() {
 
           <div className={styles.chatHeaderRight}>
             {/* Status Dropdown */}
-            <select className={styles.statusSelect} defaultValue="unsorted">
+            <select 
+              className={styles.statusSelect} 
+              value={activeContact.statusSelect || "unsorted"}
+              onChange={(e) => handleStatusChange(e.target.value)}
+            >
               <option value="unsorted">Unsorted</option>
               <option value="in_progress">In Progress</option>
               <option value="completed">Completed</option>
@@ -530,7 +585,14 @@ export default function ChatApp() {
             return (
               <div key={msg.id} className={`${styles.messageWrapper} ${msg.isSent ? styles.sent : styles.received}`}>
                 <div className={styles.messageBubble}>
-                  {msg.text}
+                  {msg.mediaUrl && (
+                    <img 
+                      src={msg.mediaUrl} 
+                      alt="Attachment" 
+                      style={{ maxWidth: "100%", maxHeight: "200px", borderRadius: "6px", display: "block", marginBottom: "8px", objectFit: "cover" }} 
+                    />
+                  )}
+                  {msg.text && <div>{msg.text}</div>}
                   <div className={styles.messageFooter}>
                     <span className={styles.messageTime}>{msg.time}</span>
                     {msg.isSent && (
