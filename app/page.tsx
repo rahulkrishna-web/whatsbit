@@ -2,6 +2,21 @@
 
 import { useState, useRef, useEffect } from "react";
 import styles from "./page.module.css";
+
+function cleanPhone(phone: string): string {
+  let raw = phone.replace(/^whatsapp:/, "");
+  let cleaned = raw.replace(/[^\d+]/g, "");
+  if (/^\d{10}$/.test(cleaned)) {
+    cleaned = "+91" + cleaned;
+  }
+  if (/^91\d{10}$/.test(cleaned)) {
+    cleaned = "+" + cleaned;
+  }
+  if (/^[1-9]\d{10,14}$/.test(cleaned) && !cleaned.startsWith("+")) {
+    cleaned = "+" + cleaned;
+  }
+  return cleaned;
+}
 import { db } from "../lib/firebase";
 import { 
   collection, 
@@ -93,6 +108,7 @@ export default function ChatApp() {
   ]);
   const [showAssignPopup, setShowAssignPopup] = useState(false);
   const [showTemplateDropdown, setShowTemplateDropdown] = useState(false);
+  const [isSendingTemplate, setIsSendingTemplate] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -244,6 +260,7 @@ export default function ChatApp() {
                   if (Array.isArray(item.PHONE) && item.PHONE.length > 0) {
                     phone = item.PHONE[0].VALUE || "";
                   }
+                  const cleanedPhone = phone ? cleanPhone(phone) : "";
                   
                   // Initials for avatar
                   const initials = fullName
@@ -254,11 +271,11 @@ export default function ChatApp() {
                     .slice(0, 2) || "👤";
 
                   return {
-                    id: phone || item.ID, // Fallback to ID if no phone
+                    id: cleanedPhone || item.ID, // Fallback to ID if no phone
                     name: fullName,
                     avatar: initials.match(/[a-zA-Z]/) ? initials : "👤",
                     time: "Today",
-                    preview: phone ? `Phone: ${phone}` : "No phone number available",
+                    preview: cleanedPhone ? `Phone: ${cleanedPhone}` : "No phone number available",
                     statusText: "WhatsApp • Offline",
                     responsibleId: "anirrudh_sharma", // default
                   };
@@ -383,6 +400,8 @@ export default function ChatApp() {
   };
 
   const handleSendTemplate = async (template: { name: string; text: string; templateSid: string }) => {
+    setIsSendingTemplate(true);
+    setShowTemplateDropdown(false);
     try {
       const response = await fetch("/api/chat/send", {
         method: "POST",
@@ -400,8 +419,9 @@ export default function ChatApp() {
       }
     } catch (err) {
       console.error("Error calling send template API:", err);
+    } finally {
+      setIsSendingTemplate(false);
     }
-    setShowTemplateDropdown(false);
   };
 
   const handleSend = async () => {
@@ -489,6 +509,7 @@ export default function ChatApp() {
                     <span className={styles.contactName}>{contact.name}</span>
                     <span className={styles.contactTime}>{contact.time}</span>
                   </div>
+                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '500', marginBottom: '2px' }}>{contact.id}</div>
                   <span className={styles.contactPreview}>{contact.preview}</span>
                 </div>
               </div>
@@ -506,7 +527,10 @@ export default function ChatApp() {
             </div>
             <div className={styles.chatHeaderInfo}>
               <span className={styles.chatHeaderName}>{activeContact.name}</span>
-              <span className={styles.chatHeaderStatus}>{activeContact.statusText}</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <span style={{ fontSize: '12px', fontWeight: '600', color: '#64748b' }}>{activeContact.id}</span>
+                <span className={styles.chatHeaderStatus}>{activeContact.statusText}</span>
+              </div>
             </div>
           </div>
 
@@ -662,6 +686,7 @@ export default function ChatApp() {
           <div style={{ position: "relative" }}>
             <button 
               onClick={() => setShowTemplateDropdown(!showTemplateDropdown)} 
+              disabled={isSendingTemplate}
               style={{ 
                 border: 'none', 
                 background: '#cbd5e1', 
@@ -670,14 +695,22 @@ export default function ChatApp() {
                 borderRadius: '16px',
                 fontSize: '12px',
                 fontWeight: '600',
-                cursor: 'pointer',
+                cursor: isSendingTemplate ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '4px',
-                outline: 'none'
+                outline: 'none',
+                opacity: isSendingTemplate ? 0.7 : 1
               }}
             >
-              📋 Templates <span style={{ fontSize: '8px' }}>▼</span>
+              {isSendingTemplate ? (
+                <>
+                  <span className={styles.spinner}></span>
+                  Sending...
+                </>
+              ) : (
+                <>📋 Templates <span style={{ fontSize: '8px' }}>▼</span></>
+              )}
             </button>
 
             {showTemplateDropdown && (

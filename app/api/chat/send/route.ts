@@ -3,6 +3,21 @@ import twilio from "twilio";
 import { db } from "../../../../lib/firebase";
 import { doc, setDoc, addDoc, collection, serverTimestamp } from "firebase/firestore";
 
+function cleanPhone(phone: string): string {
+  let raw = phone.replace(/^whatsapp:/, "");
+  let cleaned = raw.replace(/[^\d+]/g, "");
+  if (/^\d{10}$/.test(cleaned)) {
+    cleaned = "+91" + cleaned;
+  }
+  if (/^91\d{10}$/.test(cleaned)) {
+    cleaned = "+" + cleaned;
+  }
+  if (/^[1-9]\d{10,14}$/.test(cleaned) && !cleaned.startsWith("+")) {
+    cleaned = "+" + cleaned;
+  }
+  return cleaned;
+}
+
 export async function POST(request: Request) {
   try {
     const { contactId, text, useTemplate, templateSid: customTemplateSid } = await request.json();
@@ -12,7 +27,8 @@ export async function POST(request: Request) {
     }
 
     const timeString = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    const recipient = contactId.startsWith("whatsapp:") ? contactId : `whatsapp:${contactId}`;
+    const cleanContactId = cleanPhone(contactId);
+    const recipient = `whatsapp:${cleanContactId}`;
 
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
     const authToken = process.env.TWILIO_AUTH_TOKEN;
