@@ -53,6 +53,7 @@ type Contact = {
   responsibleId?: string;
   unreadCount?: number;
   statusSelect?: string;
+  label?: string;
 };
 
 const INITIAL_CONTACTS: Contact[] = [
@@ -102,6 +103,7 @@ export default function ChatApp() {
   const [allMessages, setAllMessages] = useState<Record<string, Message[]>>(INITIAL_MESSAGES);
   const [inputText, setInputText] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [activeMenuFilter, setActiveMenuFilter] = useState<string>("all");
 
   // Users for assignment
   const [users, setUsers] = useState<any[]>([
@@ -419,6 +421,14 @@ export default function ChatApp() {
     });
   };
 
+  const handleLabelChange = async (newLabel: string) => {
+    if (!activeChatId) return;
+    const contactRef = doc(db, "contacts", activeChatId);
+    await updateDoc(contactRef, {
+      label: newLabel,
+    });
+  };
+
   const handleReassign = async (newUserId: string) => {
     const assignedUser = users.find(u => u.id === newUserId);
     const userName = assignedUser ? assignedUser.name : "Not chosen";
@@ -494,10 +504,40 @@ export default function ChatApp() {
     }
   };
 
-  const filteredContacts = contacts.filter((c) =>
-    c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.preview.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Dynamic counts calculation
+  const allCount = contacts.length;
+  const unprocessedCount = contacts.filter(c => c.statusSelect === undefined || c.statusSelect === "unsorted").length;
+  const myCount = contacts.filter(c => c.responsibleId === "anirrudh_sharma").length;
+  const workdayCount = contacts.filter(c => c.label === "workday").length;
+  const lunchCount = contacts.filter(c => c.label === "lunch").length;
+  const settingsCount = contacts.filter(c => c.label === "settings").length;
+
+  const filteredContacts = contacts.filter((c) => {
+    const matchesSearch = 
+      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.preview.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.id.toLowerCase().includes(searchQuery.toLowerCase());
+      
+    if (!matchesSearch) return false;
+
+    if (activeMenuFilter === "unprocessed") {
+      return c.statusSelect === undefined || c.statusSelect === "unsorted";
+    }
+    if (activeMenuFilter === "my") {
+      return c.responsibleId === "anirrudh_sharma";
+    }
+    if (activeMenuFilter === "workday") {
+      return c.label === "workday";
+    }
+    if (activeMenuFilter === "lunch") {
+      return c.label === "lunch";
+    }
+    if (activeMenuFilter === "settings") {
+      return c.label === "settings";
+    }
+    
+    return true; // "all"
+  });
 
   return (
     <div className={styles.appContainer}>
@@ -508,19 +548,43 @@ export default function ChatApp() {
           <span>New company</span>
         </div>
         <ul className={styles.crmMenu}>
-          <li className={styles.crmMenuItem}>Workday</li>
-          <li className={styles.crmMenuItem}>Lunch</li>
-          <li className={styles.crmMenuItem}>Settings</li>
+          <li 
+            onClick={() => setActiveMenuFilter("workday")}
+            className={`${styles.crmMenuItem} ${activeMenuFilter === "workday" ? styles.crmMenuItemActive : ""}`}
+          >
+            Workday <span className={styles.badge}>{workdayCount}</span>
+          </li>
+          <li 
+            onClick={() => setActiveMenuFilter("lunch")}
+            className={`${styles.crmMenuItem} ${activeMenuFilter === "lunch" ? styles.crmMenuItemActive : ""}`}
+          >
+            Lunch <span className={styles.badge}>{lunchCount}</span>
+          </li>
+          <li 
+            onClick={() => setActiveMenuFilter("settings")}
+            className={`${styles.crmMenuItem} ${activeMenuFilter === "settings" ? styles.crmMenuItemActive : ""}`}
+          >
+            Settings <span className={styles.badge}>{settingsCount}</span>
+          </li>
         </ul>
         <ul className={styles.crmMenu} style={{ marginTop: '24px' }}>
-          <li className={`${styles.crmMenuItem} ${styles.active}`}>
-            All <span className={styles.badge}>1031</span>
+          <li 
+            onClick={() => setActiveMenuFilter("all")}
+            className={`${styles.crmMenuItem} ${activeMenuFilter === "all" ? styles.crmMenuItemActive : ""}`}
+          >
+            All <span className={styles.badge}>{allCount}</span>
           </li>
-          <li className={styles.crmMenuItem}>
-            Unprocessed <span className={styles.badge}>1031</span>
+          <li 
+            onClick={() => setActiveMenuFilter("unprocessed")}
+            className={`${styles.crmMenuItem} ${activeMenuFilter === "unprocessed" ? styles.crmMenuItemActive : ""}`}
+          >
+            Unprocessed <span className={styles.badge}>{unprocessedCount}</span>
           </li>
-          <li className={styles.crmMenuItem}>
-            My <span className={styles.badge}>24</span>
+          <li 
+            onClick={() => setActiveMenuFilter("my")}
+            className={`${styles.crmMenuItem} ${activeMenuFilter === "my" ? styles.crmMenuItemActive : ""}`}
+          >
+            My <span className={styles.badge}>{myCount}</span>
           </li>
         </ul>
       </div>
@@ -542,7 +606,7 @@ export default function ChatApp() {
             return (
               <div
                 key={contact.id}
-                className={`${styles.contactItem} ${isActive ? styles.active : ""}`}
+                className={`${styles.contactItem} ${isActive ? styles.contactItemActive : ""}`}
                 onClick={() => setActiveChatId(contact.id)}
               >
                 <div className={styles.contactAvatar}>{contact.avatar}</div>
@@ -552,7 +616,9 @@ export default function ChatApp() {
                     <span className={styles.contactTime}>{contact.time}</span>
                   </div>
                   <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '500', marginBottom: '2px' }}>{contact.id}</div>
-                  <span className={styles.contactPreview}>{contact.preview}</span>
+                  <span className={styles.contactPreview}>
+                    {contact.preview && contact.preview.startsWith("Phone:") ? "No messages yet" : contact.preview}
+                  </span>
                 </div>
               </div>
             );
@@ -600,6 +666,19 @@ export default function ChatApp() {
               <option value="unsorted">Unsorted</option>
               <option value="in_progress">In Progress</option>
               <option value="completed">Completed</option>
+            </select>
+
+            {/* Label Dropdown */}
+            <select 
+              className={styles.statusSelect} 
+              style={{ backgroundColor: '#f3e8ff', color: '#6b21a8', border: '1px solid #d8b4fe' }}
+              value={activeContact.label || ""}
+              onChange={(e) => handleLabelChange(e.target.value)}
+            >
+              <option value="">No Label</option>
+              <option value="workday">Workday</option>
+              <option value="lunch">Lunch</option>
+              <option value="settings">Settings</option>
             </select>
 
             {/* Responsible Person Selector */}
@@ -682,7 +761,7 @@ export default function ChatApp() {
 
         <div className={styles.messagesContainer}>
           {Object.entries(groupMessagesByDate(messages)).map(([dateStr, dayMessages]) => (
-            <div key={dateStr}>
+            <div key={dateStr} style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%' }}>
               <div style={{ textAlign: 'center', margin: '16px 0' }}>
                 <span style={{ backgroundColor: '#fff', padding: '6px 12px', borderRadius: '16px', fontSize: '12px', color: '#64748b', boxShadow: '0 1px 1px rgba(0,0,0,0.05)' }}>
                   {dateStr}

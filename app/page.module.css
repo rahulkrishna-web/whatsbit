@@ -49,7 +49,7 @@
 .crmMenuItem:hover {
   background-color: #e2e8f0;
 }
-.crmMenuItem.active {
+.crmMenuItemActive {
   background-color: #eff6ff;
   color: #2563eb;
   font-weight: 500;
@@ -62,7 +62,7 @@
   border-radius: 12px;
   font-size: 11px;
 }
-.active .badge {
+.crmMenuItemActive .badge {
   background-color: #2563eb;
   color: white;
 }
@@ -109,8 +109,9 @@
 .contactItem:hover {
   background-color: #f8fafc;
 }
-.contactItem.active {
+.contactItemActive {
   background-color: #f1f5f9;
+  border-left: 4px solid #2563eb;
 }
 .contactAvatar {
   width: 48px;
