@@ -512,6 +512,50 @@ export default function ChatApp() {
     }
   };
 
+  const formatTimeIST = (msg: Message) => {
+    if (msg.timestamp) {
+      try {
+        const date = msg.timestamp.toDate 
+          ? msg.timestamp.toDate() 
+          : new Date(msg.timestamp.seconds * 1000);
+        
+        if (!isNaN(date.getTime())) {
+          return date.toLocaleTimeString("en-IN", {
+            timeZone: "Asia/Kolkata",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true
+          });
+        }
+      } catch (e) {
+        // Ignore
+      }
+    }
+    return msg.time;
+  };
+
+  const formatContactTimeIST = (contact: Contact & { lastUpdated?: any }) => {
+    if (contact.lastUpdated) {
+      try {
+        const date = contact.lastUpdated.toDate 
+          ? contact.lastUpdated.toDate() 
+          : new Date(contact.lastUpdated.seconds * 1000);
+        
+        if (!isNaN(date.getTime())) {
+          return date.toLocaleTimeString("en-IN", {
+            timeZone: "Asia/Kolkata",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true
+          });
+        }
+      } catch (e) {
+        // Ignore
+      }
+    }
+    return contact.time;
+  };
+
   const handleSend = async () => {
     if (!inputText.trim()) return;
 
@@ -646,7 +690,7 @@ export default function ChatApp() {
                 <div className={styles.contactInfo}>
                   <div className={styles.contactHeader}>
                     <span className={styles.contactName}>{contact.name}</span>
-                    <span className={styles.contactTime}>{contact.time}</span>
+                    <span className={styles.contactTime}>{formatContactTimeIST(contact)}</span>
                   </div>
                   <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '500', marginBottom: '2px' }}>{contact.id}</div>
                   <span className={styles.contactPreview}>
@@ -807,7 +851,7 @@ export default function ChatApp() {
                   return (
                     <div key={msg.id} style={{ textAlign: 'center', margin: '12px 0' }}>
                       <span style={{ backgroundColor: '#fff', padding: '6px 12px', borderRadius: '16px', fontSize: '12px', color: '#64748b', boxShadow: '0 1px 1px rgba(0,0,0,0.05)' }}>
-                        {msg.text} <span style={{ fontSize: '10px', marginLeft: '6px', opacity: 0.8 }}>{msg.time}</span>
+                        {msg.text} <span style={{ fontSize: '10px', marginLeft: '6px', opacity: 0.8 }}>{formatTimeIST(msg)}</span>
                       </span>
                     </div>
                   );
@@ -824,7 +868,7 @@ export default function ChatApp() {
                       )}
                       {msg.text && <div>{msg.text}</div>}
                       <div className={styles.messageFooter}>
-                        <span className={styles.messageTime}>{msg.time}</span>
+                        <span className={styles.messageTime}>{formatTimeIST(msg)}</span>
                         {msg.isSent && (
                           <span className={styles.messageStatus} style={{ color: msg.status === "failed" ? "#ef4444" : undefined }}>
                             {msg.status === "failed" ? (

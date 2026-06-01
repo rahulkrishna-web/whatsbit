@@ -74,7 +74,12 @@ export async function POST(request: Request) {
     }
 
     if (fromPhone && (body || mediaUrl)) {
-      const timeString = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      const timeString = new Date().toLocaleTimeString("en-IN", {
+        timeZone: "Asia/Kolkata",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true
+      });
 
       // Add message to subcollection contacts/{fromPhone}/messages
       const messagesRef = collection(db, "contacts", fromPhone, "messages");

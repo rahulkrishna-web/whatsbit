@@ -26,7 +26,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Missing contactId or text" }, { status: 400 });
     }
 
-    const timeString = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const timeString = new Date().toLocaleTimeString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true
+    });
     const cleanContactId = cleanPhone(contactId);
     const recipient = `whatsapp:${cleanContactId}`;
 
