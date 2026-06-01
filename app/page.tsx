@@ -104,6 +104,42 @@ export default function ChatApp() {
   const [inputText, setInputText] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeMenuFilter, setActiveMenuFilter] = useState<string>("all");
+  const [customLabels, setCustomLabels] = useState<{ id: string; name: string }[]>([]);
+
+  // Sync custom labels from Firestore
+  useEffect(() => {
+    const labelsRef = collection(db, "labels");
+    const unsubscribe = onSnapshot(labelsRef, (snapshot) => {
+      const list: { id: string; name: string }[] = [];
+      snapshot.forEach((doc) => {
+        list.push({ id: doc.id, name: doc.data().name });
+      });
+      
+      if (list.length === 0) {
+        // Seed default labels if empty
+        const defaults = ["Workday", "Lunch", "Settings"];
+        defaults.forEach(async (name) => {
+          await addDoc(collection(db, "labels"), { name });
+        });
+      } else {
+        setCustomLabels(list);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleCreateNewLabel = async () => {
+    const name = prompt("Enter new label name:");
+    if (!name || !name.trim()) return;
+    const cleanName = name.trim();
+    if (customLabels.some(l => l.name.toLowerCase() === cleanName.toLowerCase())) {
+      alert("Label already exists!");
+      return;
+    }
+    await addDoc(collection(db, "labels"), {
+      name: cleanName,
+    });
+  };
 
   // Users for assignment
   const [users, setUsers] = useState<any[]>([
@@ -508,9 +544,6 @@ export default function ChatApp() {
   const allCount = contacts.length;
   const unprocessedCount = contacts.filter(c => c.statusSelect === undefined || c.statusSelect === "unsorted").length;
   const myCount = contacts.filter(c => c.responsibleId === "anirrudh_sharma").length;
-  const workdayCount = contacts.filter(c => c.label === "workday").length;
-  const lunchCount = contacts.filter(c => c.label === "lunch").length;
-  const settingsCount = contacts.filter(c => c.label === "settings").length;
 
   const filteredContacts = contacts.filter((c) => {
     const matchesSearch = 
@@ -526,14 +559,11 @@ export default function ChatApp() {
     if (activeMenuFilter === "my") {
       return c.responsibleId === "anirrudh_sharma";
     }
-    if (activeMenuFilter === "workday") {
-      return c.label === "workday";
-    }
-    if (activeMenuFilter === "lunch") {
-      return c.label === "lunch";
-    }
-    if (activeMenuFilter === "settings") {
-      return c.label === "settings";
+    
+    // Dynamic match for custom labels
+    const isCustomFilter = customLabels.some(lbl => lbl.name.toLowerCase() === activeMenuFilter);
+    if (isCustomFilter) {
+      return c.label === activeMenuFilter;
     }
     
     return true; // "all"
@@ -548,23 +578,26 @@ export default function ChatApp() {
           <span>New company</span>
         </div>
         <ul className={styles.crmMenu}>
+          {customLabels.map((lbl) => {
+            const key = lbl.name.toLowerCase();
+            const count = contacts.filter(c => c.label === key).length;
+            return (
+              <li 
+                key={lbl.id}
+                onClick={() => setActiveMenuFilter(key)}
+                className={`${styles.crmMenuItem} ${activeMenuFilter === key ? styles.crmMenuItemActive : ""}`}
+              >
+                {lbl.name} <span className={styles.badge}>{count}</span>
+              </li>
+            );
+          })}
+          {/* Add Label Button */}
           <li 
-            onClick={() => setActiveMenuFilter("workday")}
-            className={`${styles.crmMenuItem} ${activeMenuFilter === "workday" ? styles.crmMenuItemActive : ""}`}
+            onClick={handleCreateNewLabel}
+            className={styles.crmMenuItem}
+            style={{ color: '#2563eb', fontWeight: '600', justifyContent: 'center', gap: '6px', borderTop: '1px dashed #e2e8f0', marginTop: '4px' }}
           >
-            Workday <span className={styles.badge}>{workdayCount}</span>
-          </li>
-          <li 
-            onClick={() => setActiveMenuFilter("lunch")}
-            className={`${styles.crmMenuItem} ${activeMenuFilter === "lunch" ? styles.crmMenuItemActive : ""}`}
-          >
-            Lunch <span className={styles.badge}>{lunchCount}</span>
-          </li>
-          <li 
-            onClick={() => setActiveMenuFilter("settings")}
-            className={`${styles.crmMenuItem} ${activeMenuFilter === "settings" ? styles.crmMenuItemActive : ""}`}
-          >
-            Settings <span className={styles.badge}>{settingsCount}</span>
+            ➕ Add Label
           </li>
         </ul>
         <ul className={styles.crmMenu} style={{ marginTop: '24px' }}>
@@ -676,9 +709,9 @@ export default function ChatApp() {
               onChange={(e) => handleLabelChange(e.target.value)}
             >
               <option value="">No Label</option>
-              <option value="workday">Workday</option>
-              <option value="lunch">Lunch</option>
-              <option value="settings">Settings</option>
+              {customLabels.map((lbl) => (
+                <option key={lbl.id} value={lbl.name.toLowerCase()}>{lbl.name}</option>
+              ))}
             </select>
 
             {/* Responsible Person Selector */}
@@ -827,9 +860,9 @@ export default function ChatApp() {
               onClick={() => setShowTemplateDropdown(!showTemplateDropdown)} 
               disabled={isSendingTemplate}
               style={{ 
-                border: 'none', 
-                background: '#cbd5e1', 
-                color: '#334155',
+                border: '1px solid #cbd5e1', 
+                background: '#f8fafc', 
+                color: '#475569',
                 padding: '6px 12px',
                 borderRadius: '16px',
                 fontSize: '12px',
@@ -837,7 +870,7 @@ export default function ChatApp() {
                 cursor: isSendingTemplate ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '4px',
+                gap: '6px',
                 outline: 'none',
                 opacity: isSendingTemplate ? 0.7 : 1
               }}
@@ -848,7 +881,14 @@ export default function ChatApp() {
                   Sending...
                 </>
               ) : (
-                <>📋 Templates <span style={{ fontSize: '8px' }}>▼</span></>
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#64748b' }}>
+                    <path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z" />
+                    <line x1="16" y1="8" x2="2" y2="22" />
+                    <line x1="17.5" y1="15" x2="9" y2="15" />
+                  </svg>
+                  Templates <span style={{ fontSize: '8px' }}>▼</span>
+                </>
               )}
             </button>
 
