@@ -66,11 +66,20 @@ export async function POST(request: Request) {
     const fromPhone = cleanPhone(data.From as string);
     const body = (data.Body || "") as string;
 
-    // Check for incoming media (images) from Twilio payload
+    // Check for incoming media from Twilio payload
     const numMedia = parseInt((data.NumMedia || "0") as string, 10);
     let mediaUrl = "";
+    let mediaType: "image" | "video" | "document" | null = null;
     if (numMedia > 0) {
       mediaUrl = data.MediaUrl0 as string;
+      const mediaContentType = (data.MediaContentType0 || "") as string;
+      if (mediaContentType.startsWith("image/")) {
+        mediaType = "image";
+      } else if (mediaContentType.startsWith("video/")) {
+        mediaType = "video";
+      } else {
+        mediaType = "document";
+      }
     }
 
     if (fromPhone && (body || mediaUrl)) {
@@ -85,7 +94,8 @@ export async function POST(request: Request) {
       const messagesRef = collection(db, "contacts", fromPhone, "messages");
       await addDoc(messagesRef, {
         text: body,
-        mediaUrl: mediaUrl,
+        mediaUrl: mediaUrl || null,
+        mediaType: mediaType || null,
         isSent: false,
         time: timeString,
         status: "read", // Incoming messages default to read status
@@ -95,10 +105,14 @@ export async function POST(request: Request) {
 
       // Create or update the contact document
       const contactRef = doc(db, "contacts", fromPhone);
+      let previewText = body;
+      if (!body && mediaUrl) {
+        previewText = mediaType === "image" ? "📷 Image" : mediaType === "video" ? "🎥 Video" : "📄 Document";
+      }
       await setDoc(contactRef, {
         id: fromPhone,
         name: fromPhone, // Fallback to phone number as name initially
-        preview: mediaUrl ? "📷 Image" : (body.length > 50 ? body.substring(0, 47) + "..." : body),
+        preview: previewText.length > 50 ? previewText.substring(0, 47) + "..." : previewText,
         time: timeString,
         lastUpdated: serverTimestamp(),
         statusText: "WhatsApp • Online",

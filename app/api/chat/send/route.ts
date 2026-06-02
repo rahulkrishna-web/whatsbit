@@ -20,10 +20,10 @@ function cleanPhone(phone: string): string {
 
 export async function POST(request: Request) {
   try {
-    const { contactId, text, useTemplate, templateSid: customTemplateSid } = await request.json();
+    const { contactId, text, useTemplate, templateSid: customTemplateSid, senderName, mediaUrl, mediaType } = await request.json();
     
-    if (!contactId || !text) {
-      return NextResponse.json({ success: false, error: "Missing contactId or text" }, { status: 400 });
+    if (!contactId || (!text && !mediaUrl)) {
+      return NextResponse.json({ success: false, error: "Missing contactId or message content" }, { status: 400 });
     }
 
     const timeString = new Date().toLocaleTimeString("en-IN", {
@@ -55,7 +55,12 @@ export async function POST(request: Request) {
         if (useTemplate) {
           payload.contentSid = selectedTemplateSid;
         } else {
-          payload.body = text;
+          if (text) {
+            payload.body = text;
+          }
+          if (mediaUrl) {
+            payload.mediaUrl = [mediaUrl];
+          }
         }
 
         const message = await client.messages.create(payload);
@@ -69,8 +74,8 @@ export async function POST(request: Request) {
       twilioMessageSid = `mock-${Date.now()}`;
     }
 
-    // Use the passed text directly as final stored message content
-    const finalMsgText = text;
+    // Use the passed text directly as final stored message content or placeholder for media
+    const finalMsgText = text || (mediaType ? `Sent an attachment: ${mediaType}` : "Sent an attachment");
 
     // Write message to subcollection contacts/{contactId}/messages
     const messagesRef = collection(db, "contacts", contactId, "messages");
@@ -81,6 +86,9 @@ export async function POST(request: Request) {
       status: errorMsg ? "failed" : "sent",
       twilioSid: twilioMessageSid,
       timestamp: serverTimestamp(),
+      senderName: senderName || null,
+      mediaUrl: mediaUrl || null,
+      mediaType: mediaType || null,
     });
 
     // Update contacts list metadata to surface latest message preview

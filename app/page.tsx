@@ -17,7 +17,8 @@ function cleanPhone(phone: string): string {
   }
   return cleaned;
 }
-import { db } from "../lib/firebase";
+import { db, storage } from "../lib/firebase";
+import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { 
   collection, 
   onSnapshot, 
@@ -38,6 +39,8 @@ type Message = {
   time: string;
   status: "sent" | "delivered" | "read" | "failed";
   mediaUrl?: string;
+  mediaType?: "image" | "video" | "document";
+  senderName?: string;
   errorCode?: string;
   errorMessage?: string;
   timestamp?: any;
@@ -77,16 +80,7 @@ const INITIAL_CONTACTS: Contact[] = [
   },
 ];
 
-const INITIAL_MESSAGES: Record<string, Message[]> = {
-  "918839780947": [
-    { id: "1", text: "Please tell us how we did. Just send 1 if you are satisfied...", isSent: false, time: "11:53 AM", status: "read" },
-    { id: "2", text: "Scaling Your Flour Mill - Webinar Registration", isSent: false, time: "11:53 AM", status: "read" },
-  ],
-  "anirrudh_sharma": [
-    { id: "a1", text: "Hello, regarding the project proposal", isSent: false, time: "10:30 AM", status: "read" },
-    { id: "a2", text: "Project offer 1...nt.pdf", isSent: false, time: "11:53 AM", status: "read" },
-  ],
-};
+const INITIAL_MESSAGES: Record<string, Message[]> = {};
 
 const PREDEFINED_TEMPLATES = [
   {
@@ -106,6 +100,11 @@ export default function ChatApp() {
   const [activeMenuFilter, setActiveMenuFilter] = useState<string>("all");
   const [customLabels, setCustomLabels] = useState<{ id: string; name: string }[]>([]);
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
+  const [currentUser, setCurrentUser] = useState<{ id: string; name: string } | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Sync custom labels from Firestore
   useEffect(() => {
@@ -179,6 +178,19 @@ export default function ChatApp() {
                 clearTimeout(timeoutId);
                 w.BX24.fitWindow();
                 setIsAuthorized(true);
+
+                // Fetch current user (staff) details
+                try {
+                  w.BX24.callMethod("user.current", {}, (resUser: any) => {
+                    if (!resUser.error()) {
+                      const userData = resUser.data();
+                      const fullName = `${userData.NAME || ""} ${userData.LAST_NAME || ""}`.trim() || `User #${userData.ID}`;
+                      setCurrentUser({ id: userData.ID, name: fullName });
+                    }
+                  });
+                } catch (userErr) {
+                  console.error("Error fetching current user profile:", userErr);
+                }
 
                 // Detect if running inside a Lead/Contact Placement Tab
                 try {
@@ -298,32 +310,10 @@ export default function ChatApp() {
         });
       });
 
-      // If no messages exist in Firestore for this contact, seed initial messages
-      if (msgs.length === 0) {
-        const initialMsgs = INITIAL_MESSAGES[activeChatId] || [
-          {
-            text: "Hello! How can we assist you today?",
-            isSent: false,
-            time: "12:00 PM",
-            status: "read"
-          }
-        ];
-        initialMsgs.forEach(async (m, index) => {
-          await addDoc(collection(db, "contacts", activeChatId, "messages"), {
-            text: m.text,
-            isSent: m.isSent,
-            time: m.time,
-            status: m.status,
-            twilioSid: `mock-seed-${index}-${Date.now()}`,
-            timestamp: serverTimestamp(),
-          });
-        });
-      } else {
-        setAllMessages((prev) => ({
-          ...prev,
-          [activeChatId]: msgs,
-        }));
-      }
+      setAllMessages((prev) => ({
+        ...prev,
+        [activeChatId]: msgs,
+      }));
     });
 
     return () => unsubscribe();
@@ -730,30 +720,89 @@ export default function ChatApp() {
   };
 
   const handleSend = async () => {
-    if (!inputText.trim()) return;
+    if (!inputText.trim() && !selectedFile) return;
 
     const messageText = inputText;
+    const fileToSend = selectedFile;
+    
     setInputText(""); // Clear input early for responsive feel
+    setSelectedFile(null); // Clear file selection early
 
-    // Check if we are sending the welcome template (keyword trigger or matching text pattern)
-    const isWelcomeTemplate = messageText.toLowerCase().includes("welcome") || messageText.toLowerCase().includes("choyal");
-
-    try {
-      const response = await fetch("/api/chat/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contactId: activeChatId,
-          text: messageText,
-          useTemplate: isWelcomeTemplate,
-        }),
-      });
-      const result = await response.json();
-      if (!result.success) {
-        console.error("Failed to send message via Twilio API:", result.error);
+    if (fileToSend) {
+      setUploading(true);
+      try {
+        const storageRef = ref(storage, `attachments/${activeChatId}/${Date.now()}_${fileToSend.name}`);
+        const uploadTask = uploadBytesResumable(storageRef, fileToSend);
+        
+        uploadTask.on('state_changed', 
+          (snapshot) => {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            setUploadProgress(Math.round(progress));
+          }, 
+          (error) => {
+            console.error("Upload failed:", error);
+            alert("Upload failed: " + error.message);
+            setUploading(false);
+            setUploadProgress(0);
+          }, 
+          async () => {
+            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+            let mediaType = "document";
+            if (fileToSend.type.startsWith("image/")) mediaType = "image";
+            else if (fileToSend.type.startsWith("video/")) mediaType = "video";
+            
+            try {
+              const response = await fetch("/api/chat/send", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  contactId: activeChatId,
+                  text: messageText,
+                  mediaUrl: downloadURL,
+                  mediaType: mediaType,
+                  senderName: currentUser ? currentUser.name : "Staff",
+                }),
+              });
+              const result = await response.json();
+              if (!result.success) {
+                console.error("Failed to send message via Twilio API:", result.error);
+              }
+            } catch (err) {
+              console.error("Error calling send message API:", err);
+            } finally {
+              setUploading(false);
+              setUploadProgress(0);
+            }
+          }
+        );
+      } catch (err: any) {
+        console.error("Error in upload flow:", err);
+        alert("Failed to initiate upload: " + err.message);
+        setUploading(false);
+        setUploadProgress(0);
       }
-    } catch (err) {
-      console.error("Error calling send message API:", err);
+    } else {
+      // Text-only message flow
+      const isWelcomeTemplate = messageText.toLowerCase().includes("welcome") || messageText.toLowerCase().includes("choyal");
+
+      try {
+        const response = await fetch("/api/chat/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contactId: activeChatId,
+            text: messageText,
+            useTemplate: isWelcomeTemplate,
+            senderName: currentUser ? currentUser.name : "Staff",
+          }),
+        });
+        const result = await response.json();
+        if (!result.success) {
+          console.error("Failed to send message via Twilio API:", result.error);
+        }
+      } catch (err) {
+        console.error("Error calling send message API:", err);
+      }
     }
   };
 
@@ -1076,13 +1125,60 @@ export default function ChatApp() {
                   <div key={msg.id} className={`${styles.messageWrapper} ${msg.isSent ? styles.sent : styles.received}`}>
                     <div className={styles.messageBubble}>
                       {msg.mediaUrl && (
-                        <img 
-                          src={msg.mediaUrl} 
-                          alt="Attachment" 
-                          style={{ maxWidth: "100%", maxHeight: "200px", borderRadius: "6px", display: "block", marginBottom: "8px", objectFit: "cover" }} 
-                        />
+                        <div style={{ marginBottom: '8px' }}>
+                          {msg.mediaType === "image" || (!msg.mediaType && msg.mediaUrl.match(/\.(jpeg|jpg|gif|png|webp)/i)) ? (
+                            <img 
+                              src={msg.mediaUrl} 
+                              alt="Attachment" 
+                              style={{ maxWidth: "100%", maxHeight: "240px", borderRadius: "8px", display: "block", objectFit: "cover" }} 
+                            />
+                          ) : msg.mediaType === "video" || (!msg.mediaType && msg.mediaUrl.match(/\.(mp4|webm|ogg)/i)) ? (
+                            <video 
+                              src={msg.mediaUrl} 
+                              controls 
+                              style={{ maxWidth: "100%", maxHeight: "240px", borderRadius: "8px", display: "block" }} 
+                            />
+                          ) : (
+                            <a 
+                              href={msg.mediaUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                padding: '10px 12px',
+                                background: 'rgba(0,0,0,0.06)',
+                                borderRadius: '8px',
+                                textDecoration: 'none',
+                                color: 'inherit',
+                                fontSize: '13px',
+                                fontWeight: '500'
+                              }}
+                            >
+                              📄 View Document
+                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 'auto' }}>
+                                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                                <polyline points="15 3 21 3 21 9" />
+                                <line x1="10" y1="14" x2="21" y2="3" />
+                              </svg>
+                            </a>
+                          )}
+                        </div>
                       )}
                       {msg.text && <div>{msg.text}</div>}
+                      {msg.isSent && msg.senderName && (
+                        <div style={{ 
+                          fontSize: '10px', 
+                          opacity: 0.7, 
+                          textAlign: 'right', 
+                          marginTop: '4px',
+                          fontStyle: 'italic',
+                          color: '#475569'
+                        }}>
+                          Sent by {msg.senderName}
+                        </div>
+                      )}
                       <div className={styles.messageFooter}>
                         <span className={styles.messageTime}>{formatTimeIST(msg)}</span>
                         {msg.isSent && (
@@ -1111,8 +1207,66 @@ export default function ChatApp() {
           <div ref={messagesEndRef} />
         </div>
 
+        {/* Selected File Attachment Preview */}
+        {selectedFile && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '10px 16px',
+            background: '#f8fafc',
+            borderTop: '1px solid #e2e8f0',
+            borderBottom: '1px solid #e2e8f0',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '24px' }}>
+                {selectedFile.type.startsWith("image/") ? "🖼️" : selectedFile.type.startsWith("video/") ? "🎥" : "📄"}
+              </span>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontSize: '13px', fontWeight: '600', color: '#1e293b' }}>
+                  {selectedFile.name}
+                </span>
+                <span style={{ fontSize: '11px', color: '#64748b' }}>
+                  {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                </span>
+              </div>
+            </div>
+            
+            {uploading ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '100px', height: '6px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
+                  <div style={{ width: `${uploadProgress}%`, height: '100%', background: '#3b82f6', transition: 'width 0.1s ease-out' }}></div>
+                </div>
+                <span style={{ fontSize: '12px', color: '#3b82f6', fontWeight: 'bold' }}>{uploadProgress}%</span>
+              </div>
+            ) : (
+              <button 
+                onClick={() => setSelectedFile(null)} 
+                style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#ef4444', fontSize: '18px', padding: '4px' }}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        )}
+
         <div className={styles.chatInputArea}>
-          <button style={{ border: 'none', background: 'none', fontSize: '20px', cursor: 'pointer' }}>📎</button>
+          <input
+            type="file"
+            ref={fileInputRef}
+            style={{ display: "none" }}
+            accept="image/*,video/*,application/pdf"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) setSelectedFile(file);
+            }}
+          />
+          <button 
+            onClick={() => fileInputRef.current?.click()} 
+            style={{ border: 'none', background: 'none', fontSize: '20px', cursor: 'pointer' }}
+          >
+            📎
+          </button>
           
           {/* Templates Trigger Button */}
           <div style={{ position: "relative" }}>
@@ -1208,7 +1362,7 @@ export default function ChatApp() {
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
             className={styles.chatInputField}
           />
-          <button onClick={handleSend} disabled={!inputText.trim()} className={styles.sendButton}>
+          <button onClick={handleSend} disabled={!inputText.trim() && !selectedFile} className={styles.sendButton}>
             <svg className={styles.sendIcon} viewBox="0 0 24 24">
               <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path>
             </svg>
