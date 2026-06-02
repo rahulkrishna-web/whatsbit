@@ -685,7 +685,7 @@ export default function ChatApp() {
     w.BX24.callMethod("placement.bind", {
       PLACEMENT: "CRM_LEAD_DETAIL_TAB",
       HANDLER: window.location.origin + "/",
-      TITLE: "WhatsBit",
+      TITLE: "WhatsappLine",
       DESCRIPTION: "WhatsApp chat for this lead"
     }, (res1: any) => {
       if (res1.error()) {
@@ -695,7 +695,7 @@ export default function ChatApp() {
       w.BX24.callMethod("placement.bind", {
         PLACEMENT: "CRM_CONTACT_DETAIL_TAB",
         HANDLER: window.location.origin + "/",
-        TITLE: "WhatsBit",
+        TITLE: "WhatsappLine",
         DESCRIPTION: "WhatsApp chat for this contact"
       }, (res2: any) => {
         if (res2.error()) {
@@ -705,7 +705,7 @@ export default function ChatApp() {
         w.BX24.callMethod("placement.bind", {
           PLACEMENT: "CRM_LEAD_DETAIL_ACTIVITY",
           HANDLER: window.location.origin + "/",
-          TITLE: "WhatsBit Dialog",
+          TITLE: "WhatsappLine Dialog",
           DESCRIPTION: "WhatsApp chat for this lead"
         }, (res3: any) => {
           if (res3.error()) {
@@ -715,14 +715,14 @@ export default function ChatApp() {
           w.BX24.callMethod("placement.bind", {
             PLACEMENT: "CRM_CONTACT_DETAIL_ACTIVITY",
             HANDLER: window.location.origin + "/",
-            TITLE: "WhatsBit Dialog",
+            TITLE: "WhatsappLine Dialog",
             DESCRIPTION: "WhatsApp chat for this contact"
           }, (res4: any) => {
             if (res4.error()) {
               alert("Failed to bind CRM_CONTACT_DETAIL_ACTIVITY:\n" + formatBx24Error(res4.error()));
               return;
             }
-            alert("WhatsBit CRM placements synced successfully under 'WhatsBit' and 'WhatsBit Dialog'!");
+            alert("WhatsappLine CRM placements synced successfully under 'WhatsappLine' and 'WhatsappLine Dialog'!");
           });
         });
       });

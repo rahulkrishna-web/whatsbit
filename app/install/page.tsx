@@ -26,13 +26,13 @@ export default function InstallPage() {
           w.BX24.callMethod("placement.bind", {
             PLACEMENT: "CRM_LEAD_DETAIL_TAB",
             HANDLER: window.location.origin + "/",
-            TITLE: "WhatsBit",
+            TITLE: "WhatsappLine",
             DESCRIPTION: "WhatsApp chat for this lead"
           }, () => {
             w.BX24.callMethod("placement.bind", {
               PLACEMENT: "CRM_CONTACT_DETAIL_TAB",
               HANDLER: window.location.origin + "/",
-              TITLE: "WhatsBit",
+              TITLE: "WhatsappLine",
               DESCRIPTION: "WhatsApp chat for this contact"
             }, () => {
               setStatus("Completing installation with Bitrix24...");
