@@ -176,7 +176,7 @@ export default function ChatApp() {
                   const entityId = info.options.ID;
                   const placementName = info.placement;
                   let apiMethod = "crm.lead.get";
-                  if (placementName === "CRM_CONTACT_DETAIL_TAB") {
+                  if (placementName === "CRM_CONTACT_DETAIL_TAB" || placementName === "CRM_CONTACT_DETAIL_ACTIVITY") {
                     apiMethod = "crm.contact.get";
                   }
 
@@ -633,7 +633,21 @@ export default function ChatApp() {
               TITLE: "WhatsBit Chat",
               DESCRIPTION: "WhatsApp chat for this contact"
             }, () => {
-              alert("WhatsBit CRM tabs registered successfully in Leads and Contacts!");
+              w.BX24.callMethod("placement.bind", {
+                PLACEMENT: "CRM_LEAD_DETAIL_ACTIVITY",
+                HANDLER: window.location.origin + "/",
+                TITLE: "WhatsBit Chat",
+                DESCRIPTION: "WhatsApp chat for this lead"
+              }, () => {
+                w.BX24.callMethod("placement.bind", {
+                  PLACEMENT: "CRM_CONTACT_DETAIL_ACTIVITY",
+                  HANDLER: window.location.origin + "/",
+                  TITLE: "WhatsBit Chat",
+                  DESCRIPTION: "WhatsApp chat for this contact"
+                }, () => {
+                  alert("WhatsBit CRM tabs & activity buttons registered successfully in Leads and Contacts!");
+                });
+              });
             });
           });
         });
