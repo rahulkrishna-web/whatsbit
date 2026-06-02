@@ -22,9 +22,24 @@ export default function InstallPage() {
     if (w.BX24) {
       try {
         w.BX24.init(() => {
-          setStatus("Completing installation with Bitrix24...");
-          w.BX24.installFinish();
-          setStatus("Installation completed successfully! You can close this window.");
+          setStatus("Registering CRM Placements...");
+          w.BX24.callMethod("placement.bind", {
+            PLACEMENT: "CRM_LEAD_DETAIL_TAB",
+            HANDLER: window.location.origin + "/",
+            TITLE: "WhatsBit Chat",
+            DESCRIPTION: "WhatsApp chat for this lead"
+          }, () => {
+            w.BX24.callMethod("placement.bind", {
+              PLACEMENT: "CRM_CONTACT_DETAIL_TAB",
+              HANDLER: window.location.origin + "/",
+              TITLE: "WhatsBit Chat",
+              DESCRIPTION: "WhatsApp chat for this contact"
+            }, () => {
+              setStatus("Completing installation with Bitrix24...");
+              w.BX24.installFinish();
+              setStatus("Installation completed successfully! CRM tabs registered.");
+            });
+          });
         });
       } catch (e) {
         console.error("Failed to complete installation", e);

@@ -168,6 +168,66 @@ export default function ChatApp() {
           try {
             w.BX24.init(() => {
               w.BX24.fitWindow();
+
+              // Detect if running inside a Lead/Contact Placement Tab
+              try {
+                const info = w.BX24.placement.info();
+                if (info && info.options && info.options.ID) {
+                  const entityId = info.options.ID;
+                  const placementName = info.placement;
+                  let apiMethod = "crm.lead.get";
+                  if (placementName === "CRM_CONTACT_DETAIL_TAB") {
+                    apiMethod = "crm.contact.get";
+                  }
+
+                  w.BX24.callMethod(apiMethod, { id: entityId }, async (result: any) => {
+                    if (result.error()) {
+                      console.error("Error fetching CRM entity details:", result.error());
+                      return;
+                    }
+
+                    const entity = result.data();
+                    let phone = "";
+                    if (entity.PHONE && Array.isArray(entity.PHONE) && entity.PHONE.length > 0) {
+                      phone = entity.PHONE[0].VALUE;
+                    } else if (entity.PHONE && typeof entity.PHONE === "string") {
+                      phone = entity.PHONE;
+                    }
+
+                    if (phone) {
+                      const cleaned = cleanPhone(phone);
+                      const firstName = entity.NAME || "";
+                      const lastName = entity.LAST_NAME || "";
+                      const fullName = `${firstName} ${lastName}`.trim() || `Lead #${entityId}`;
+
+                      // Check/Create contact in Firestore
+                      const contactRef = doc(db, "contacts", cleaned);
+                      const contactSnap = await getDoc(contactRef);
+
+                      if (!contactSnap.exists()) {
+                        await setDoc(contactRef, {
+                          id: cleaned,
+                          name: fullName,
+                          preview: "Phone: " + phone,
+                          time: new Date().toLocaleTimeString("en-IN", {
+                            timeZone: "Asia/Kolkata",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            hour12: true
+                          }),
+                          lastUpdated: serverTimestamp(),
+                          statusText: "WhatsApp • Online",
+                        });
+                      }
+
+                      // Switch to the loaded chat
+                      setActiveChatId(cleaned);
+                    }
+                  });
+                }
+              } catch (e) {
+                console.error("Error getting placement info:", e);
+              }
             });
           } catch (e) {
             console.error("Failed to initialize Bitrix24 client SDK", e);
@@ -556,6 +616,35 @@ export default function ChatApp() {
     return contact.time;
   };
 
+  const registerPlacements = () => {
+    const w = window as any;
+    if (w.BX24) {
+      try {
+        w.BX24.init(() => {
+          w.BX24.callMethod("placement.bind", {
+            PLACEMENT: "CRM_LEAD_DETAIL_TAB",
+            HANDLER: window.location.origin + "/",
+            TITLE: "WhatsBit Chat",
+            DESCRIPTION: "WhatsApp chat for this lead"
+          }, () => {
+            w.BX24.callMethod("placement.bind", {
+              PLACEMENT: "CRM_CONTACT_DETAIL_TAB",
+              HANDLER: window.location.origin + "/",
+              TITLE: "WhatsBit Chat",
+              DESCRIPTION: "WhatsApp chat for this contact"
+            }, () => {
+              alert("WhatsBit CRM tabs registered successfully in Leads and Contacts!");
+            });
+          });
+        });
+      } catch (e) {
+        alert("Error registering placements: " + e);
+      }
+    } else {
+      alert("Please open this app inside Bitrix24 to register buttons.");
+    }
+  };
+
   const handleSend = async () => {
     if (!inputText.trim()) return;
 
@@ -617,9 +706,20 @@ export default function ChatApp() {
     <div className={styles.appContainer}>
       {/* 1. CRM Sidebar */}
       <div className={styles.crmSidebar}>
-        <div className={styles.crmHeader}>
-          <div className={styles.crmAvatar}>N</div>
-          <span>New company</span>
+        <div className={styles.crmHeader} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div className={styles.crmAvatar}>N</div>
+            <span>New company</span>
+          </div>
+          <button 
+            onClick={registerPlacements} 
+            title="Sync CRM Placements" 
+            style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: 0.7, padding: '4px', display: 'flex', alignItems: 'center' }}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+            </svg>
+          </button>
         </div>
         <ul className={styles.crmMenu}>
           {customLabels.map((lbl) => {
