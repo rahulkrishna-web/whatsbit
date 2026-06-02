@@ -621,42 +621,72 @@ export default function ChatApp() {
     if (w.BX24) {
       try {
         w.BX24.init(() => {
-          w.BX24.callMethod("placement.bind", {
-            PLACEMENT: "CRM_LEAD_DETAIL_TAB",
-            HANDLER: window.location.origin + "/",
-            TITLE: "WhatsBit Chat",
-            DESCRIPTION: "WhatsApp chat for this lead"
-          }, () => {
-            w.BX24.callMethod("placement.bind", {
-              PLACEMENT: "CRM_CONTACT_DETAIL_TAB",
-              HANDLER: window.location.origin + "/",
-              TITLE: "WhatsBit Chat",
-              DESCRIPTION: "WhatsApp chat for this contact"
-            }, () => {
-              w.BX24.callMethod("placement.bind", {
-                PLACEMENT: "CRM_LEAD_DETAIL_ACTIVITY",
-                HANDLER: window.location.origin + "/",
-                TITLE: "WhatsBit Chat",
-                DESCRIPTION: "WhatsApp chat for this lead"
-              }, () => {
-                w.BX24.callMethod("placement.bind", {
-                  PLACEMENT: "CRM_CONTACT_DETAIL_ACTIVITY",
-                  HANDLER: window.location.origin + "/",
-                  TITLE: "WhatsBit Chat",
-                  DESCRIPTION: "WhatsApp chat for this contact"
+          // 1. Get all currently registered placements to clean up stale duplicates
+          w.BX24.callMethod("placement.get", {}, (resGet: any) => {
+            if (resGet.error()) {
+              console.error("Error getting placements:", resGet.error());
+              bindNewPlacements();
+              return;
+            }
+            
+            const list = resGet.data();
+            if (Array.isArray(list) && list.length > 0) {
+              let unbindCount = 0;
+              list.forEach((item: any) => {
+                w.BX24.callMethod("placement.unbind", {
+                  PLACEMENT: item.placement,
+                  HANDLER: item.handler
                 }, () => {
-                  alert("WhatsBit CRM tabs & activity buttons registered successfully in Leads and Contacts!");
+                  unbindCount++;
+                  if (unbindCount === list.length) {
+                    bindNewPlacements();
+                  }
                 });
               });
-            });
+            } else {
+              bindNewPlacements();
+            }
           });
         });
       } catch (e) {
-        alert("Error registering placements: " + e);
+        alert("Error during placement sync: " + e);
       }
     } else {
       alert("Please open this app inside Bitrix24 to register buttons.");
     }
+  };
+
+  const bindNewPlacements = () => {
+    const w = window as any;
+    w.BX24.callMethod("placement.bind", {
+      PLACEMENT: "CRM_LEAD_DETAIL_TAB",
+      HANDLER: window.location.origin + "/",
+      TITLE: "WhatsBit",
+      DESCRIPTION: "WhatsApp chat for this lead"
+    }, () => {
+      w.BX24.callMethod("placement.bind", {
+        PLACEMENT: "CRM_CONTACT_DETAIL_TAB",
+        HANDLER: window.location.origin + "/",
+        TITLE: "WhatsBit",
+        DESCRIPTION: "WhatsApp chat for this contact"
+      }, () => {
+        w.BX24.callMethod("placement.bind", {
+          PLACEMENT: "CRM_LEAD_DETAIL_ACTIVITY",
+          HANDLER: window.location.origin + "/",
+          TITLE: "WhatsBit Dialog",
+          DESCRIPTION: "WhatsApp chat for this lead"
+        }, () => {
+          w.BX24.callMethod("placement.bind", {
+            PLACEMENT: "CRM_CONTACT_DETAIL_ACTIVITY",
+            HANDLER: window.location.origin + "/",
+            TITLE: "WhatsBit Dialog",
+            DESCRIPTION: "WhatsApp chat for this contact"
+          }, () => {
+            alert("WhatsBit CRM placements synced successfully under 'WhatsBit' and 'WhatsBit Dialog'!");
+          });
+        });
+      });
+    });
   };
 
   const handleSend = async () => {
