@@ -625,6 +625,7 @@ export default function ChatApp() {
           w.BX24.callMethod("placement.get", {}, (resGet: any) => {
             if (resGet.error()) {
               console.error("Error getting placements:", resGet.error());
+              alert("Sync placement check failed: " + JSON.stringify(resGet.error()) + "\nWill try to register directly.");
               bindNewPlacements();
               return;
             }
@@ -636,8 +637,11 @@ export default function ChatApp() {
                 w.BX24.callMethod("placement.unbind", {
                   PLACEMENT: item.placement,
                   HANDLER: item.handler
-                }, () => {
+                }, (resUnbind: any) => {
                   unbindCount++;
+                  if (resUnbind.error()) {
+                    console.error("Failed to unbind old placement:", resUnbind.error());
+                  }
                   if (unbindCount === list.length) {
                     bindNewPlacements();
                   }
@@ -663,25 +667,41 @@ export default function ChatApp() {
       HANDLER: window.location.origin + "/",
       TITLE: "WhatsBit",
       DESCRIPTION: "WhatsApp chat for this lead"
-    }, () => {
+    }, (res1: any) => {
+      if (res1.error()) {
+        alert("Failed to bind CRM_LEAD_DETAIL_TAB:\n" + JSON.stringify(res1.error()));
+        return;
+      }
       w.BX24.callMethod("placement.bind", {
         PLACEMENT: "CRM_CONTACT_DETAIL_TAB",
         HANDLER: window.location.origin + "/",
         TITLE: "WhatsBit",
         DESCRIPTION: "WhatsApp chat for this contact"
-      }, () => {
+      }, (res2: any) => {
+        if (res2.error()) {
+          alert("Failed to bind CRM_CONTACT_DETAIL_TAB:\n" + JSON.stringify(res2.error()));
+          return;
+        }
         w.BX24.callMethod("placement.bind", {
           PLACEMENT: "CRM_LEAD_DETAIL_ACTIVITY",
           HANDLER: window.location.origin + "/",
           TITLE: "WhatsBit Dialog",
           DESCRIPTION: "WhatsApp chat for this lead"
-        }, () => {
+        }, (res3: any) => {
+          if (res3.error()) {
+            alert("Failed to bind CRM_LEAD_DETAIL_ACTIVITY:\n" + JSON.stringify(res3.error()));
+            return;
+          }
           w.BX24.callMethod("placement.bind", {
             PLACEMENT: "CRM_CONTACT_DETAIL_ACTIVITY",
             HANDLER: window.location.origin + "/",
             TITLE: "WhatsBit Dialog",
             DESCRIPTION: "WhatsApp chat for this contact"
-          }, () => {
+          }, (res4: any) => {
+            if (res4.error()) {
+              alert("Failed to bind CRM_CONTACT_DETAIL_ACTIVITY:\n" + JSON.stringify(res4.error()));
+              return;
+            }
             alert("WhatsBit CRM placements synced successfully under 'WhatsBit' and 'WhatsBit Dialog'!");
           });
         });
