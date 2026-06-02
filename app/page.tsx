@@ -105,6 +105,7 @@ export default function ChatApp() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeMenuFilter, setActiveMenuFilter] = useState<string>("all");
   const [customLabels, setCustomLabels] = useState<{ id: string; name: string }[]>([]);
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
 
   // Sync custom labels from Firestore
   useEffect(() => {
@@ -158,83 +159,94 @@ export default function ChatApp() {
 
   // Initialize Bitrix24 SDK dynamically if inside iframe
   useEffect(() => {
-    if (typeof window !== "undefined" && window.self !== window.top) {
-      const script = document.createElement("script");
-      script.src = "https://api.bitrix24.com/api/v1/";
-      script.async = true;
-      script.onload = () => {
-        const w = window as any;
-        if (w.BX24) {
-          try {
-            w.BX24.init(() => {
-              w.BX24.fitWindow();
+    if (typeof window !== "undefined") {
+      if (window.self === window.top) {
+        setIsAuthorized(false);
+      } else {
+        const script = document.createElement("script");
+        script.src = "https://api.bitrix24.com/api/v1/";
+        script.async = true;
 
-              // Detect if running inside a Lead/Contact Placement Tab
-              try {
-                const info = w.BX24.placement.info();
-                if (info && info.options && info.options.ID) {
-                  const entityId = info.options.ID;
-                  const placementName = info.placement;
-                  let apiMethod = "crm.lead.get";
-                  if (placementName === "CRM_CONTACT_DETAIL_TAB" || placementName === "CRM_CONTACT_DETAIL_ACTIVITY") {
-                    apiMethod = "crm.contact.get";
-                  }
+        const timeoutId = setTimeout(() => {
+          setIsAuthorized(false);
+        }, 5000);
 
-                  w.BX24.callMethod(apiMethod, { id: entityId }, async (result: any) => {
-                    if (result.error()) {
-                      console.error("Error fetching CRM entity details:", result.error());
-                      return;
+        script.onload = () => {
+          const w = window as any;
+          if (w.BX24) {
+            try {
+              w.BX24.init(() => {
+                clearTimeout(timeoutId);
+                w.BX24.fitWindow();
+                setIsAuthorized(true);
+
+                // Detect if running inside a Lead/Contact Placement Tab
+                try {
+                  const info = w.BX24.placement.info();
+                  if (info && info.options && info.options.ID) {
+                    const entityId = info.options.ID;
+                    const placementName = info.placement;
+                    let apiMethod = "crm.lead.get";
+                    if (placementName === "CRM_CONTACT_DETAIL_TAB" || placementName === "CRM_CONTACT_DETAIL_ACTIVITY") {
+                      apiMethod = "crm.contact.get";
                     }
 
-                    const entity = result.data();
-                    let phone = "";
-                    if (entity.PHONE && Array.isArray(entity.PHONE) && entity.PHONE.length > 0) {
-                      phone = entity.PHONE[0].VALUE;
-                    } else if (entity.PHONE && typeof entity.PHONE === "string") {
-                      phone = entity.PHONE;
-                    }
-
-                    if (phone) {
-                      const cleaned = cleanPhone(phone);
-                      const firstName = entity.NAME || "";
-                      const lastName = entity.LAST_NAME || "";
-                      const fullName = `${firstName} ${lastName}`.trim() || `Lead #${entityId}`;
-
-                      // Check/Create contact in Firestore
-                      const contactRef = doc(db, "contacts", cleaned);
-                      const contactSnap = await getDoc(contactRef);
-
-                      if (!contactSnap.exists()) {
-                        await setDoc(contactRef, {
-                          id: cleaned,
-                          name: fullName,
-                          preview: "Phone: " + phone,
-                          time: new Date().toLocaleTimeString("en-IN", {
-                            timeZone: "Asia/Kolkata",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            hour12: true
-                          }),
-                          lastUpdated: serverTimestamp(),
-                          statusText: "WhatsApp • Online",
-                        });
+                    w.BX24.callMethod(apiMethod, { id: entityId }, async (result: any) => {
+                      if (result.error()) {
+                        console.error("Error fetching CRM entity details:", result.error());
+                        return;
                       }
 
-                      // Switch to the loaded chat
-                      setActiveChatId(cleaned);
-                    }
-                  });
+                      const entity = result.data();
+                      let phone = "";
+                      if (entity.PHONE && Array.isArray(entity.PHONE) && entity.PHONE.length > 0) {
+                        phone = entity.PHONE[0].VALUE;
+                      } else if (entity.PHONE && typeof entity.PHONE === "string") {
+                        phone = entity.PHONE;
+                      }
+
+                      if (phone) {
+                        const cleaned = cleanPhone(phone);
+                        const firstName = entity.NAME || "";
+                        const lastName = entity.LAST_NAME || "";
+                        const fullName = `${firstName} ${lastName}`.trim() || `Lead #${entityId}`;
+
+                        // Check/Create contact in Firestore
+                        const contactRef = doc(db, "contacts", cleaned);
+                        const contactSnap = await getDoc(contactRef);
+
+                        if (!contactSnap.exists()) {
+                          await setDoc(contactRef, {
+                            id: cleaned,
+                            name: fullName,
+                            preview: "Phone: " + phone,
+                            time: new Date().toLocaleTimeString("en-IN", {
+                              timeZone: "Asia/Kolkata",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              hour12: true
+                            }),
+                            lastUpdated: serverTimestamp(),
+                            statusText: "WhatsApp • Online",
+                          });
+                        }
+
+                        // Switch to the loaded chat
+                        setActiveChatId(cleaned);
+                      }
+                    });
+                  }
+                } catch (e) {
+                  console.error("Error getting placement info:", e);
                 }
-              } catch (e) {
-                console.error("Error getting placement info:", e);
-              }
-            });
-          } catch (e) {
-            console.error("Failed to initialize Bitrix24 client SDK", e);
+              });
+            } catch (e) {
+              console.error("Failed to initialize Bitrix24 client SDK", e);
+            }
           }
-        }
-      };
-      document.head.appendChild(script);
+        };
+        document.head.appendChild(script);
+      }
     }
   }, []);
 
@@ -616,6 +628,14 @@ export default function ChatApp() {
     return contact.time;
   };
 
+  const formatBx24Error = (err: any): string => {
+    if (!err) return "Unknown error";
+    if (err.ex && err.ex.error_description) return err.ex.error_description;
+    if (err.ex && err.ex.error) return err.ex.error;
+    if (err.status) return "HTTP Status: " + err.status;
+    return err.toString() || "Request failed";
+  };
+
   const registerPlacements = () => {
     const w = window as any;
     if (w.BX24) {
@@ -625,7 +645,7 @@ export default function ChatApp() {
           w.BX24.callMethod("placement.get", {}, (resGet: any) => {
             if (resGet.error()) {
               console.error("Error getting placements:", resGet.error());
-              alert("Sync placement check failed: " + JSON.stringify(resGet.error()) + "\nWill try to register directly.");
+              alert("Sync placement check failed: " + formatBx24Error(resGet.error()) + "\nWill try to register directly.");
               bindNewPlacements();
               return;
             }
@@ -669,7 +689,7 @@ export default function ChatApp() {
       DESCRIPTION: "WhatsApp chat for this lead"
     }, (res1: any) => {
       if (res1.error()) {
-        alert("Failed to bind CRM_LEAD_DETAIL_TAB:\n" + JSON.stringify(res1.error()));
+        alert("Failed to bind CRM_LEAD_DETAIL_TAB:\n" + formatBx24Error(res1.error()));
         return;
       }
       w.BX24.callMethod("placement.bind", {
@@ -679,7 +699,7 @@ export default function ChatApp() {
         DESCRIPTION: "WhatsApp chat for this contact"
       }, (res2: any) => {
         if (res2.error()) {
-          alert("Failed to bind CRM_CONTACT_DETAIL_TAB:\n" + JSON.stringify(res2.error()));
+          alert("Failed to bind CRM_CONTACT_DETAIL_TAB:\n" + formatBx24Error(res2.error()));
           return;
         }
         w.BX24.callMethod("placement.bind", {
@@ -689,7 +709,7 @@ export default function ChatApp() {
           DESCRIPTION: "WhatsApp chat for this lead"
         }, (res3: any) => {
           if (res3.error()) {
-            alert("Failed to bind CRM_LEAD_DETAIL_ACTIVITY:\n" + JSON.stringify(res3.error()));
+            alert("Failed to bind CRM_LEAD_DETAIL_ACTIVITY:\n" + formatBx24Error(res3.error()));
             return;
           }
           w.BX24.callMethod("placement.bind", {
@@ -699,7 +719,7 @@ export default function ChatApp() {
             DESCRIPTION: "WhatsApp chat for this contact"
           }, (res4: any) => {
             if (res4.error()) {
-              alert("Failed to bind CRM_CONTACT_DETAIL_ACTIVITY:\n" + JSON.stringify(res4.error()));
+              alert("Failed to bind CRM_CONTACT_DETAIL_ACTIVITY:\n" + formatBx24Error(res4.error()));
               return;
             }
             alert("WhatsBit CRM placements synced successfully under 'WhatsBit' and 'WhatsBit Dialog'!");
@@ -765,6 +785,38 @@ export default function ChatApp() {
     
     return true; // "all"
   });
+
+  if (isAuthorized === null) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#0f172a', color: '#f8fafc', fontFamily: 'sans-serif' }}>
+        <div style={{ width: '40px', height: '40px', border: '4px solid #334155', borderTop: '4px solid #3b82f6', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+        <p style={{ marginTop: '16px', fontSize: '14px', opacity: 0.8 }}>Connecting to Bitrix24...</p>
+        <style dangerouslySetInnerHTML={{__html: `
+          @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        `}} />
+      </div>
+    );
+  }
+
+  if (isAuthorized === false) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#0f172a', color: '#f8fafc', padding: '24px', fontFamily: 'sans-serif', textAlign: 'center' }}>
+        <div style={{ background: '#ef444415', border: '1px solid #ef444430', borderRadius: '12px', padding: '32px', maxWidth: '480px' }}>
+          <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: '16px', display: 'inline-block' }}>
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+          <h2 style={{ fontSize: '20px', fontWeight: 600, marginBottom: '8px' }}>Access Denied</h2>
+          <p style={{ fontSize: '14px', color: '#94a3b8', lineHeight: 1.5, marginBottom: '16px' }}>
+            This application is secure and can only be accessed within your Bitrix24 portal. Direct external access is restricted.
+          </p>
+          <div style={{ fontSize: '12px', color: '#64748b', borderTop: '1px solid #334155', paddingTop: '16px' }}>
+            App ID: WhatsappLine • Status: Secured
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.appContainer}>
