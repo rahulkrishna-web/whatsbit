@@ -39,7 +39,7 @@ type Message = {
   time: string;
   status: "sent" | "delivered" | "read" | "failed";
   mediaUrl?: string;
-  mediaType?: "image" | "video" | "document";
+  mediaType?: "image" | "video" | "audio" | "document";
   senderName?: string;
   errorCode?: string;
   errorMessage?: string;
@@ -107,6 +107,7 @@ export default function ChatApp() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [activeLightboxImage, setActiveLightboxImage] = useState<string | null>(null);
 
   // Sync custom labels from Firestore
   useEffect(() => {
@@ -151,6 +152,11 @@ export default function ChatApp() {
   const [showAssignPopup, setShowAssignPopup] = useState(false);
   const [showTemplateDropdown, setShowTemplateDropdown] = useState(false);
   const [isSendingTemplate, setIsSendingTemplate] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+
+  const handleAddEmoji = (emoji: string) => {
+    setInputText((prev) => prev + emoji);
+  };
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -307,6 +313,7 @@ export default function ChatApp() {
           time: data.time || "",
           status: data.status || "sent",
           mediaUrl: data.mediaUrl || "",
+          mediaType: data.mediaType || "",
           errorCode: data.errorCode || "",
           errorMessage: data.errorMessage || "",
           timestamp: data.timestamp,
@@ -461,16 +468,40 @@ export default function ChatApp() {
     return () => clearInterval(timer);
   }, [activeChatId]);
 
+  // Listen for Escape key to close lightbox
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setActiveLightboxImage(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   const activeContact = contacts.find((c) => c.id === activeChatId) || contacts[0] || INITIAL_CONTACTS[0];
-  const messages = allMessages[activeChatId] || (activeContact ? [
-    {
-      id: "welcome-msg",
-      text: `Hello ${activeContact.name}! How can we help you today?`,
-      isSent: false,
-      time: activeContact.time || "12:00 PM",
-      status: "read"
+  const messages = allMessages[activeChatId] || [];
+
+  const is24HourWindowActive = () => {
+    if (!messages || messages.length === 0) return false;
+    
+    // Find the last received message from the customer (inbound)
+    const lastReceived = [...messages].reverse().find(m => !m.isSent);
+    if (!lastReceived) return false;
+    
+    if (!lastReceived.timestamp) {
+      return true;
     }
-  ] : []);
+    
+    const msgDate = lastReceived.timestamp.toDate 
+      ? lastReceived.timestamp.toDate() 
+      : new Date(lastReceived.timestamp.seconds * 1000);
+      
+    const differenceInMs = Date.now() - msgDate.getTime();
+    const twentyFourHoursInMs = 24 * 60 * 60 * 1000;
+    
+    return differenceInMs < twentyFourHoursInMs;
+  };
 
   useEffect(() => {
     scrollToBottom();
@@ -1138,12 +1169,25 @@ export default function ChatApp() {
                 onClick={() => setShowAssignPopup(!showAssignPopup)}
                 className={styles.responsibleBadgeButton}
               >
-                <div 
-                  className={styles.responsibleAvatar} 
-                  style={{ backgroundColor: users.find(u => u.id === activeContact.responsibleId)?.color || "#10b981" }}
-                >
-                  {users.find(u => u.id === activeContact.responsibleId)?.avatar || "AS"}
-                </div>
+                {activeContact.responsibleId && users.find(u => u.id === activeContact.responsibleId) ? (
+                  <div 
+                    className={styles.responsibleAvatar} 
+                    style={{ backgroundColor: users.find(u => u.id === activeContact.responsibleId)?.color || "#10b981" }}
+                  >
+                    {users.find(u => u.id === activeContact.responsibleId)?.avatar}
+                  </div>
+                ) : (
+                  <div 
+                    className={styles.responsibleAvatar} 
+                    style={{ backgroundColor: "#cbd5e1" }}
+                    title="No responsible person assigned"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="#64748b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                      <circle cx="12" cy="7" r="4"></circle>
+                    </svg>
+                  </div>
+                )}
                 <span className={styles.caret}>▼</span>
               </button>
 
@@ -1235,17 +1279,24 @@ export default function ChatApp() {
                     <div className={styles.messageBubble}>
                       {msg.mediaUrl && (
                         <div style={{ marginBottom: '8px' }}>
-                          {msg.mediaType === "image" || (!msg.mediaType && msg.mediaUrl.match(/\.(jpeg|jpg|gif|png|webp)/i)) ? (
+                          {msg.mediaType === "image" || (!msg.mediaType && (msg.mediaUrl.match(/\.(jpeg|jpg|gif|png|webp)/i) || msg.mediaUrl.includes("api.twilio.com"))) ? (
                             <img 
                               src={msg.mediaUrl} 
                               alt="Attachment" 
-                              style={{ maxWidth: "100%", maxHeight: "240px", borderRadius: "8px", display: "block", objectFit: "cover" }} 
+                              style={{ maxWidth: "100%", maxHeight: "240px", borderRadius: "8px", display: "block", objectFit: "cover", cursor: "pointer" }} 
+                              onClick={() => setActiveLightboxImage(msg.mediaUrl || null)}
                             />
                           ) : msg.mediaType === "video" || (!msg.mediaType && msg.mediaUrl.match(/\.(mp4|webm|ogg)/i)) ? (
                             <video 
                               src={msg.mediaUrl} 
                               controls 
                               style={{ maxWidth: "100%", maxHeight: "240px", borderRadius: "8px", display: "block" }} 
+                            />
+                          ) : msg.mediaType === "audio" || (!msg.mediaType && msg.mediaUrl.match(/\.(mp3|wav|ogg|m4a|aac|amr)/i)) ? (
+                            <audio 
+                              src={msg.mediaUrl} 
+                              controls 
+                              style={{ maxWidth: "100%", display: "block", marginTop: "4px" }} 
                             />
                           ) : (
                             <a 
@@ -1377,7 +1428,7 @@ export default function ChatApp() {
           </div>
         )}
 
-        <div className={styles.chatInputArea}>
+        <div className={styles.chatInputArea} style={!is24HourWindowActive() ? { backgroundColor: '#f8fafc', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'stretch' } : {}}>
           <input
             type="file"
             ref={fileInputRef}
@@ -1391,114 +1442,342 @@ export default function ChatApp() {
               }
             }}
           />
-          <button 
-            onClick={() => fileInputRef.current?.click()} 
-            style={{ border: 'none', background: 'none', fontSize: '20px', cursor: 'pointer' }}
-          >
-            📎
-          </button>
-          
-          {/* Templates Trigger Button */}
-          <div style={{ position: "relative" }}>
-            <button 
-              onClick={() => setShowTemplateDropdown(!showTemplateDropdown)} 
-              disabled={isSendingTemplate}
-              style={{ 
-                border: '1px solid #cbd5e1', 
-                background: '#f8fafc', 
-                color: '#475569',
-                padding: '6px 12px',
-                borderRadius: '16px',
-                fontSize: '12px',
-                fontWeight: '600',
-                cursor: isSendingTemplate ? 'not-allowed' : 'pointer',
+          {!is24HourWindowActive() ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
+              <div style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '6px',
-                outline: 'none',
-                opacity: isSendingTemplate ? 0.7 : 1
-              }}
-            >
-              {isSendingTemplate ? (
-                <>
-                  <span className={styles.spinner}></span>
-                  Sending...
-                </>
-              ) : (
-                <>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#64748b' }}>
-                    <path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z" />
-                    <line x1="16" y1="8" x2="2" y2="22" />
-                    <line x1="17.5" y1="15" x2="9" y2="15" />
-                  </svg>
-                  Templates <span style={{ fontSize: '8px' }}>▼</span>
-                </>
-              )}
-            </button>
-
-            {showTemplateDropdown && (
-              <div style={{
-                position: 'absolute',
-                bottom: 'calc(100% + 8px)',
-                left: 0,
-                width: '280px',
-                backgroundColor: '#fff',
-                border: '1px solid #e2e8f0',
+                gap: '8px',
+                padding: '10px 14px',
                 borderRadius: '8px',
-                boxShadow: '0 -10px 15px -3px rgba(0, 0, 0, 0.1), 0 -4px 6px -2px rgba(0, 0, 0, 0.05)',
-                padding: '8px',
-                zIndex: 100,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '4px'
+                backgroundColor: '#fffbeb',
+                border: '1px solid #fef3c7',
+                color: '#b45309',
+                fontSize: '13px',
+                fontWeight: '500',
               }}>
-                <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', padding: '4px 8px', textTransform: 'uppercase', textAlign: 'left' }}>
-                  Select WhatsApp Template
-                </div>
-                {PREDEFINED_TEMPLATES.map((tmpl) => (
-                  <button
-                    key={tmpl.id}
-                    onClick={() => handleSendTemplate(tmpl)}
-                    style={{
-                      border: 'none',
-                      background: 'none',
-                      textAlign: 'left',
-                      padding: '8px',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      fontSize: '13px',
-                      color: '#1e293b',
-                      transition: 'background-color 0.2s',
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f1f5f9')}
-                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                    title={tmpl.text}
-                  >
-                    <div style={{ fontWeight: '600', marginBottom: '2px' }}>{tmpl.name}</div>
-                    <div style={{ fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {tmpl.text}
-                    </div>
-                  </button>
-                ))}
+                <span style={{ fontSize: '16px' }}>⚠️</span>
+                <span>
+                  The 24-hour service window has expired or is inactive. You can only send pre-approved template messages.
+                </span>
               </div>
-            )}
-          </div>
+              
+              <div style={{ display: 'flex', justifyContent: 'flex-start', position: 'relative' }}>
+                <button 
+                  onClick={() => setShowTemplateDropdown(!showTemplateDropdown)} 
+                  disabled={isSendingTemplate}
+                  style={{ 
+                    border: '1px solid #cbd5e1', 
+                    background: '#fff', 
+                    color: '#1e293b',
+                    padding: '8px 16px',
+                    borderRadius: '20px',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    cursor: isSendingTemplate ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    outline: 'none',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                    opacity: isSendingTemplate ? 0.7 : 1
+                  }}
+                >
+                  {isSendingTemplate ? (
+                    <>
+                      <span className={styles.spinner}></span>
+                      Sending Template...
+                    </>
+                  ) : (
+                    <>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#475569' }}>
+                        <path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z" />
+                        <line x1="16" y1="8" x2="2" y2="22" />
+                        <line x1="17.5" y1="15" x2="9" y2="15" />
+                      </svg>
+                      Select & Send Template <span style={{ fontSize: '8px' }}>▼</span>
+                    </>
+                  )}
+                </button>
 
-          <input
-            type="text"
-            placeholder="Type a message..."
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            className={styles.chatInputField}
-          />
-          <button onClick={handleSend} disabled={!inputText.trim() && !selectedFile} className={styles.sendButton}>
-            <svg className={styles.sendIcon} viewBox="0 0 24 24">
-              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path>
-            </svg>
-          </button>
+                {showTemplateDropdown && (
+                  <div style={{
+                    position: 'absolute',
+                    bottom: 'calc(100% + 8px)',
+                    left: 0,
+                    width: '320px',
+                    backgroundColor: '#fff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '8px',
+                    boxShadow: '0 -10px 15px -3px rgba(0, 0, 0, 0.1), 0 -4px 6px -2px rgba(0, 0, 0, 0.05)',
+                    padding: '8px',
+                    zIndex: 100,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px'
+                  }}>
+                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', padding: '4px 8px', textTransform: 'uppercase', textAlign: 'left' }}>
+                      Select WhatsApp Template
+                    </div>
+                    {PREDEFINED_TEMPLATES.map((tmpl) => (
+                      <button
+                        key={tmpl.id}
+                        onClick={() => handleSendTemplate(tmpl)}
+                        style={{
+                          border: 'none',
+                          background: 'none',
+                          textAlign: 'left',
+                          padding: '8px',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '13px',
+                          color: '#1e293b',
+                          transition: 'background-color 0.2s',
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f1f5f9')}
+                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                        title={tmpl.text}
+                      >
+                        <div style={{ fontWeight: '600', marginBottom: '2px' }}>{tmpl.name}</div>
+                        <div style={{ fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {tmpl.text}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <>
+              <button 
+                onClick={() => fileInputRef.current?.click()} 
+                style={{ border: 'none', background: 'none', fontSize: '20px', cursor: 'pointer' }}
+              >
+                📎
+              </button>
+
+              {/* Emoji Trigger Button */}
+              <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                <button 
+                  onClick={() => setShowEmojiPicker(!showEmojiPicker)} 
+                  style={{ border: 'none', background: 'none', fontSize: '20px', cursor: 'pointer', padding: '0 4px' }}
+                  title="Add emoji"
+                >
+                  😀
+                </button>
+                {showEmojiPicker && (
+                  <div style={{
+                    position: 'absolute',
+                    bottom: 'calc(100% + 12px)',
+                    left: '-10px',
+                    backgroundColor: '#fff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '12px',
+                    boxShadow: '0 -10px 15px -3px rgba(0, 0, 0, 0.1), 0 -4px 6px -2px rgba(0, 0, 0, 0.05)',
+                    padding: '12px',
+                    zIndex: 100,
+                    width: '260px',
+                  }}>
+                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px', textTransform: 'uppercase', textAlign: 'left' }}>
+                      Emojis
+                    </div>
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(7, 1fr)',
+                      gap: '6px',
+                      maxHeight: '160px',
+                      overflowY: 'auto',
+                    }}>
+                      {['😊', '😂', '🥰', '😍', '🥺', '😉', '😎', '👍', '🙌', '❤️', '🔥', '👏', '🎉', '🤔', '😢', '😡', '🚀', '👀', '💬', '📅', '📍', '✉️', '📞', '💡', '🔒', '✅', '❌', '➕', '➖', '❓', '❗️', '🤝', '💯', '✨', '⭐', '🌈', '☀️', '☕', '🍕', '🎉', '🎁', '💼', '💻', '📱', '🔒', '🔑'].map((emoji) => (
+                        <button
+                          key={emoji}
+                          onClick={() => handleAddEmoji(emoji)}
+                          style={{
+                            border: 'none',
+                            background: 'none',
+                            fontSize: '20px',
+                            cursor: 'pointer',
+                            padding: '4px',
+                            borderRadius: '6px',
+                            transition: 'background-color 0.1s',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f1f5f9')}
+                          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Templates Trigger Button */}
+              <div style={{ position: "relative" }}>
+                <button 
+                  onClick={() => setShowTemplateDropdown(!showTemplateDropdown)} 
+                  disabled={isSendingTemplate}
+                  style={{ 
+                    border: '1px solid #cbd5e1', 
+                    background: '#f8fafc', 
+                    color: '#475569',
+                    padding: '6px 12px',
+                    borderRadius: '16px',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    cursor: isSendingTemplate ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    outline: 'none',
+                    opacity: isSendingTemplate ? 0.7 : 1
+                  }}
+                >
+                  {isSendingTemplate ? (
+                    <>
+                      <span className={styles.spinner}></span>
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#64748b' }}>
+                        <path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z" />
+                        <line x1="16" y1="8" x2="2" y2="22" />
+                        <line x1="17.5" y1="15" x2="9" y2="15" />
+                      </svg>
+                      Templates <span style={{ fontSize: '8px' }}>▼</span>
+                    </>
+                  )}
+                </button>
+
+                {showTemplateDropdown && (
+                  <div style={{
+                    position: 'absolute',
+                    bottom: 'calc(100% + 8px)',
+                    left: 0,
+                    width: '280px',
+                    backgroundColor: '#fff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '8px',
+                    boxShadow: '0 -10px 15px -3px rgba(0, 0, 0, 0.1), 0 -4px 6px -2px rgba(0, 0, 0, 0.05)',
+                    padding: '8px',
+                    zIndex: 100,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px'
+                  }}>
+                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', padding: '4px 8px', textTransform: 'uppercase', textAlign: 'left' }}>
+                      Select WhatsApp Template
+                    </div>
+                    {PREDEFINED_TEMPLATES.map((tmpl) => (
+                      <button
+                        key={tmpl.id}
+                        onClick={() => handleSendTemplate(tmpl)}
+                        style={{
+                          border: 'none',
+                          background: 'none',
+                          textAlign: 'left',
+                          padding: '8px',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '13px',
+                          color: '#1e293b',
+                          transition: 'background-color 0.2s',
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f1f5f9')}
+                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                        title={tmpl.text}
+                      >
+                        <div style={{ fontWeight: '600', marginBottom: '2px' }}>{tmpl.name}</div>
+                        <div style={{ fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {tmpl.text}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <input
+                type="text"
+                placeholder="Type a message..."
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                className={styles.chatInputField}
+              />
+              <button onClick={handleSend} disabled={!inputText.trim() && !selectedFile} className={styles.sendButton}>
+                <svg className={styles.sendIcon} viewBox="0 0 24 24">
+                  <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path>
+                </svg>
+              </button>
+            </>
+          )}
         </div>
       </div>
+
+      {/* Lightbox / Image Modal Popup */}
+      {activeLightboxImage && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            backgroundColor: 'rgba(11, 20, 26, 0.9)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+          }}
+          onClick={() => setActiveLightboxImage(null)}
+        >
+          {/* Close button */}
+          <button 
+            style={{
+              position: 'absolute',
+              top: '20px',
+              right: '20px',
+              background: 'none',
+              border: 'none',
+              color: '#f1f5f9',
+              cursor: 'pointer',
+              padding: '8px',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: 'rgba(255,255,255,0.08)',
+              transition: 'background-color 0.2s',
+            }}
+            onClick={() => setActiveLightboxImage(null)}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+          
+          <img 
+            src={activeLightboxImage} 
+            alt="Enlarged Attachment" 
+            style={{
+              maxWidth: '90%',
+              maxHeight: '90%',
+              objectFit: 'contain',
+              borderRadius: '8px',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
+              border: '1px solid rgba(255,255,255,0.1)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }
