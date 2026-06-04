@@ -1068,7 +1068,7 @@ export default function ChatApp() {
   // Dynamic counts calculation
   const allCount = contacts.length;
   const unprocessedCount = contacts.filter(c => !c.labels || c.labels.length === 0).length;
-  const myCount = contacts.filter(c => c.responsibleId === "anirrudh_sharma").length;
+  const myCount = contacts.filter(c => currentUser && c.responsibleId === currentUser.id).length;
   const favoritesCount = contacts.filter(c => c.isFavorite).length;
   const channelsGroupsCount = contacts.filter(c => c.id.includes("group")).length || 2;
 
@@ -1179,7 +1179,7 @@ export default function ChatApp() {
       return !c.labels || c.labels.length === 0;
     }
     if (activeMenuFilter === "my") {
-      return c.responsibleId === "anirrudh_sharma";
+      return currentUser ? c.responsibleId === currentUser.id : false;
     }
     if (activeMenuFilter === "favorites") {
       return c.isFavorite === true;
@@ -1321,7 +1321,7 @@ export default function ChatApp() {
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
                   <circle cx="12" cy="7" r="4"></circle>
                 </svg>
-                My
+                Assigned to me
               </span>
               <span className={styles.badge}>{myCount}</span>
             </li>
