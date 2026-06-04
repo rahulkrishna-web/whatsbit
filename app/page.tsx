@@ -58,6 +58,7 @@ type Contact = {
   unreadCount?: number;
   statusSelect?: string;
   label?: string;
+  labels?: string[];
   funnelStage?: string;
   isFavorite?: boolean;
 };
@@ -101,7 +102,8 @@ export default function ChatApp() {
   const [inputText, setInputText] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeMenuFilter, setActiveMenuFilter] = useState<string>("all");
-  const [customLabels, setCustomLabels] = useState<{ id: string; name: string }[]>([]);
+  const [customLabels, setCustomLabels] = useState<{ id: string; name: string; parentId?: string | null; order?: number }[]>([]);
+  const [showLabelDropdown, setShowLabelDropdown] = useState(false);
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
   const [currentUser, setCurrentUser] = useState<{ id: string; name: string } | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -113,24 +115,34 @@ export default function ChatApp() {
   const [activeLightboxImage, setActiveLightboxImage] = useState<string | null>(null);
   const [zoomScale, setZoomScale] = useState<number>(1);
 
-  const [funnels, setFunnels] = useState<{ id: string; name: string }[]>([]);
-
   // Sync custom labels from Firestore
   useEffect(() => {
     const labelsRef = collection(db, "labels");
     const unsubscribe = onSnapshot(labelsRef, (snapshot) => {
-      const list: { id: string; name: string }[] = [];
+      const list: { id: string; name: string; parentId?: string | null; order?: number }[] = [];
       snapshot.forEach((doc) => {
-        list.push({ id: doc.id, name: doc.data().name });
+        const data = doc.data();
+        list.push({ 
+          id: doc.id, 
+          name: data.name,
+          parentId: data.parentId || null,
+          order: data.order !== undefined ? data.order : 0
+        });
       });
       
       if (list.length === 0) {
         // Seed default labels if empty
         const defaults = ["High Priority", "Warm Leads", "Follow Up Required", "Technical Support"];
-        defaults.forEach(async (name) => {
-          await addDoc(collection(db, "labels"), { name });
+        defaults.forEach(async (name, index) => {
+          await addDoc(collection(db, "labels"), { 
+            name,
+            parentId: null,
+            order: index
+          });
         });
       } else {
+        // Sort by order
+        list.sort((a, b) => (a.order || 0) - (b.order || 0));
         setCustomLabels(list);
       }
     });
@@ -141,79 +153,129 @@ export default function ChatApp() {
     const name = prompt("Enter new label name:");
     if (!name || !name.trim()) return;
     const cleanName = name.trim();
-    if (customLabels.some(l => l.name.toLowerCase() === cleanName.toLowerCase())) {
-      alert("Label already exists!");
+    if (customLabels.some(l => l.name.toLowerCase() === cleanName.toLowerCase() && !l.parentId)) {
+      alert("Label already exists at the root level!");
       return;
     }
+    
+    // Find root siblings to determine order
+    const siblings = customLabels.filter(l => !l.parentId);
+    const maxOrder = siblings.reduce((max, s) => Math.max(max, s.order || 0), 0);
+
     await addDoc(collection(db, "labels"), {
       name: cleanName,
+      parentId: null,
+      order: maxOrder + 1
     });
   };
 
-  const handleDeleteLabel = async (labelId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!confirm("Are you sure you want to delete this label?")) return;
-    try {
-      await deleteDoc(doc(db, "labels", labelId));
-      setActiveMenuFilter("all");
-    } catch (err) {
-      console.error("Error deleting label:", err);
-    }
-  };
-
-  // Sync custom funnels from Firestore
-  useEffect(() => {
-    const funnelsRef = collection(db, "funnels");
-    const unsubscribe = onSnapshot(funnelsRef, (snapshot) => {
-      const list: { id: string; name: string }[] = [];
-      snapshot.forEach((doc) => {
-        list.push({ id: doc.id, name: doc.data().name });
-      });
-      
-      if (list.length === 0) {
-        // Seed default funnel stages if empty
-        const defaults = ["New", "Confirmation made", "In work", "Success", "Refusal"];
-        defaults.forEach(async (name) => {
-          await addDoc(collection(db, "funnels"), { name });
-        });
-      } else {
-        const order = ["new", "confirmation made", "in work", "success", "refusal"];
-        list.sort((a, b) => {
-          const idxA = order.indexOf(a.name.toLowerCase());
-          const idxB = order.indexOf(b.name.toLowerCase());
-          if (idxA === -1 && idxB === -1) return 0;
-          if (idxA === -1) return 1;
-          if (idxB === -1) return -1;
-          return idxA - idxB;
-        });
-        setFunnels(list);
-      }
-    });
-    return () => unsubscribe();
-  }, []);
-
-  const handleCreateNewFunnel = async () => {
-    const name = prompt("Enter new funnel stage name:");
+  const handleCreateSublabel = async (parentId: string, parentName: string) => {
+    const name = prompt(`Enter sublabel name for "${parentName}":`);
     if (!name || !name.trim()) return;
     const cleanName = name.trim();
-    if (funnels.some(f => f.name.toLowerCase() === cleanName.toLowerCase())) {
-      alert("Funnel stage already exists!");
+    if (customLabels.some(l => l.name.toLowerCase() === cleanName.toLowerCase() && l.parentId === parentId)) {
+      alert("Sublabel already exists under this parent!");
       return;
     }
-    await addDoc(collection(db, "funnels"), {
+    
+    const siblings = customLabels.filter(l => l.parentId === parentId);
+    const maxOrder = siblings.reduce((max, s) => Math.max(max, s.order || 0), 0);
+
+    await addDoc(collection(db, "labels"), {
       name: cleanName,
+      parentId,
+      order: maxOrder + 1
     });
   };
 
-  const handleDeleteFunnel = async (funnelId: string, e: React.MouseEvent) => {
+  const handleDeleteLabelAndDescendants = async (labelId: string, labelName: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm("Are you sure you want to delete this funnel stage?")) return;
+    if (!confirm(`Are you sure you want to delete the label "${labelName}" and all of its sublabels?`)) return;
+    
+    // Find all descendants recursively
+    const getDescendantIds = (id: string): string[] => {
+      const children = customLabels.filter(l => l.parentId === id);
+      return [
+        id,
+        ...children.flatMap(c => getDescendantIds(c.id))
+      ];
+    };
+
+    const idsToDelete = getDescendantIds(labelId);
+    
     try {
-      await deleteDoc(doc(db, "funnels", funnelId));
+      for (const id of idsToDelete) {
+        await deleteDoc(doc(db, "labels", id));
+      }
       setActiveMenuFilter("all");
     } catch (err) {
-      console.error("Error deleting funnel stage:", err);
+      console.error("Error deleting labels:", err);
     }
+  };
+
+  const handleLabelDrop = async (draggedId: string, targetId: string | null) => {
+    if (draggedId === targetId) return;
+
+    // Find dragged label
+    const dragged = customLabels.find(l => l.id === draggedId);
+    if (!dragged) return;
+
+    if (targetId === null) {
+      // Move to root level
+      const rootSiblings = customLabels.filter(l => !l.parentId);
+      const maxOrder = rootSiblings.reduce((max, s) => Math.max(max, s.order || 0), 0);
+      const labelRef = doc(db, "labels", draggedId);
+      await updateDoc(labelRef, {
+        parentId: null,
+        order: maxOrder + 1
+      });
+      return;
+    }
+
+    const target = customLabels.find(l => l.id === targetId);
+    if (!target) return;
+
+    // Check if dropping on a sibling (same parent) -> Reorder!
+    if (dragged.parentId === target.parentId) {
+      const labelRef = doc(db, "labels", draggedId);
+      const targetRef = doc(db, "labels", targetId);
+      // Swap their orders:
+      const tempOrder = dragged.order || 0;
+      await updateDoc(labelRef, { order: target.order || 0 });
+      await updateDoc(targetRef, { order: tempOrder });
+      return;
+    }
+
+    // Different parent -> Nest dragged under target!
+    // Validate depth: dragged label and its subtree cannot exceed 3 levels total
+    const getSubtreeDepth = (id: string): number => {
+      const children = customLabels.filter(l => l.parentId === id);
+      if (children.length === 0) return 1;
+      return 1 + Math.max(...children.map(c => getSubtreeDepth(c.id)));
+    };
+
+    const getParentDepth = (parentId: string | null): number => {
+      if (!parentId) return 0;
+      const parent = customLabels.find(l => l.id === parentId);
+      if (!parent) return 0;
+      return 1 + getParentDepth(parent.parentId || null);
+    };
+
+    const draggedSubtreeDepth = getSubtreeDepth(draggedId);
+    const targetParentDepth = getParentDepth(targetId);
+
+    if (targetParentDepth + draggedSubtreeDepth > 3) {
+      alert("Maximum nesting depth of 3 levels exceeded.");
+      return;
+    }
+
+    const labelRef = doc(db, "labels", draggedId);
+    const siblings = customLabels.filter(l => l.parentId === targetId);
+    const maxOrder = siblings.reduce((max, s) => Math.max(max, s.order || 0), 0);
+    await updateDoc(labelRef, {
+      parentId: targetId,
+      order: maxOrder + 1
+    });
   };
 
   // Users for assignment
@@ -620,37 +682,7 @@ export default function ChatApp() {
     return groups;
   };
 
-  const handleStatusChange = async (newStatus: string) => {
-    if (!activeChatId) return;
-    const contactRef = doc(db, "contacts", activeChatId);
-    let statusTextVal = "WhatsApp • Unsorted";
-    if (newStatus === "in_progress") {
-      statusTextVal = "WhatsApp • In Progress";
-    } else if (newStatus === "completed") {
-      statusTextVal = "WhatsApp • Completed";
-    }
 
-    await updateDoc(contactRef, {
-      statusText: statusTextVal,
-      statusSelect: newStatus,
-    });
-  };
-
-  const handleLabelChange = async (newLabel: string) => {
-    if (!activeChatId) return;
-    const contactRef = doc(db, "contacts", activeChatId);
-    await updateDoc(contactRef, {
-      label: newLabel,
-    });
-  };
-
-  const handleFunnelStageChange = async (newStage: string) => {
-    if (!activeChatId) return;
-    const contactRef = doc(db, "contacts", activeChatId);
-    await updateDoc(contactRef, {
-      funnelStage: newStage,
-    });
-  };
 
   const handleReassign = async (newUserId: string) => {
     const assignedUser = users.find(u => u.id === newUserId);
@@ -1026,11 +1058,105 @@ export default function ChatApp() {
 
   // Dynamic counts calculation
   const allCount = contacts.length;
-  const unprocessedCount = contacts.filter(c => !c.funnelStage || c.funnelStage === "" || c.funnelStage === "unsorted" || c.statusSelect === undefined || c.statusSelect === "unsorted").length;
+  const unprocessedCount = contacts.filter(c => !c.labels || c.labels.length === 0).length;
   const myCount = contacts.filter(c => c.responsibleId === "anirrudh_sharma").length;
   const favoritesCount = contacts.filter(c => c.isFavorite).length;
   const channelsGroupsCount = contacts.filter(c => c.id.includes("group")).length || 2;
-  const lostCount = contacts.filter(c => c.funnelStage === "refusal").length;
+
+  const getLabelContactCount = (lblId: string, lblName: string) => {
+    const nameLower = lblName.toLowerCase();
+    return contacts.filter(c => 
+      (c.labels && c.labels.includes(lblId)) || 
+      (c.label === nameLower)
+    ).length;
+  };
+
+  const getLabelsByParentId = (parentId: string | null) => {
+    return customLabels
+      .filter(l => l.parentId === parentId)
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
+  };
+
+  const getLabelLevel = (lbl: { id: string; name: string; parentId?: string | null; order?: number }): number => {
+    if (!lbl.parentId) return 1;
+    const parent = customLabels.find(l => l.id === lbl.parentId);
+    if (!parent) return 1;
+    if (!parent.parentId) return 2;
+    return 3;
+  };
+
+  const renderLabelTree = (parentId: string | null, depth: number = 0) => {
+    const list = getLabelsByParentId(parentId);
+    return list.map((lbl) => {
+      const labelKey = `label:${lbl.name.toLowerCase()}`;
+      const count = getLabelContactCount(lbl.id, lbl.name);
+      const isSelected = activeMenuFilter === labelKey;
+      
+      return (
+        <div key={lbl.id} style={{ display: 'flex', flexDirection: 'column' }}>
+          <li 
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.setData("text/plain", lbl.id);
+            }}
+            onDragOver={(e) => {
+              e.preventDefault();
+            }}
+            onDrop={async (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const draggedId = e.dataTransfer.getData("text/plain");
+              await handleLabelDrop(draggedId, lbl.id);
+            }}
+            onClick={() => setActiveMenuFilter(labelKey)}
+            className={`${styles.crmMenuItem} ${isSelected ? styles.crmMenuItemActive : ""}`}
+            style={{ 
+              paddingLeft: `${16 + depth * 16}px`,
+              borderLeft: isSelected ? '3px solid #2563eb' : 'none',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              cursor: 'grab'
+            }}
+          >
+            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ 
+                width: '6px', 
+                height: '6px', 
+                borderRadius: '50%', 
+                backgroundColor: depth === 0 ? '#3b82f6' : depth === 1 ? '#a855f7' : '#ec4899' 
+              }}></span>
+              <span style={{ fontSize: '13px' }}>{lbl.name}</span>
+            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={(e) => e.stopPropagation()}>
+              <span className={styles.badge}>{count}</span>
+              
+              {/* Add child button if depth < 2 (levels 1 and 2) */}
+              {depth < 2 && (
+                <button 
+                  onClick={() => handleCreateSublabel(lbl.id, lbl.name)}
+                  style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', padding: '2px' }}
+                  title="Add Sublabel"
+                >
+                  +
+                </button>
+              )}
+
+              {/* Delete button */}
+              <button 
+                onClick={(e) => handleDeleteLabelAndDescendants(lbl.id, lbl.name, e)}
+                className={styles.deleteLabelButton}
+                title="Delete Label"
+              >
+                ×
+              </button>
+            </div>
+          </li>
+          {renderLabelTree(lbl.id, depth + 1)}
+        </div>
+      );
+    });
+  };
 
   const filteredContacts = contacts.filter((c) => {
     const matchesSearch = 
@@ -1041,7 +1167,7 @@ export default function ChatApp() {
     if (!matchesSearch) return false;
 
     if (activeMenuFilter === "unprocessed") {
-      return !c.funnelStage || c.funnelStage === "" || c.funnelStage === "unsorted" || c.statusSelect === undefined || c.statusSelect === "unsorted";
+      return !c.labels || c.labels.length === 0;
     }
     if (activeMenuFilter === "my") {
       return c.responsibleId === "anirrudh_sharma";
@@ -1052,20 +1178,24 @@ export default function ChatApp() {
     if (activeMenuFilter === "channels_groups") {
       return false;
     }
-    if (activeMenuFilter === "lost") {
-      return c.funnelStage === "refusal";
-    }
     
     // Check if filtering by custom labels
     if (activeMenuFilter.startsWith("label:")) {
       const labelName = activeMenuFilter.replace("label:", "");
+      const matchingLabel = customLabels.find(l => l.name.toLowerCase() === labelName);
+      if (matchingLabel) {
+        // Find descendants recursively
+        const getDescendantIds = (id: string): string[] => {
+          const children = customLabels.filter(l => l.parentId === id);
+          return [id, ...children.flatMap(c => getDescendantIds(c.id))];
+        };
+        const allowedIds = getDescendantIds(matchingLabel.id);
+        return (
+          (c.labels && c.labels.some(id => allowedIds.includes(id))) || 
+          (c.label === labelName)
+        );
+      }
       return c.label === labelName;
-    }
-
-    // Check if filtering by funnel stages
-    if (activeMenuFilter.startsWith("funnel:")) {
-      const stageName = activeMenuFilter.replace("funnel:", "");
-      return c.funnelStage === stageName;
     }
     
     return true; // "all"
@@ -1216,27 +1346,42 @@ export default function ChatApp() {
               <span className={styles.badge}>{channelsGroupsCount}</span>
             </li>
 
-            <li 
-              onClick={() => setActiveMenuFilter("lost")}
-              className={`${styles.crmMenuItem} ${activeMenuFilter === "lost" ? styles.crmMenuItemActive : ""}`}
-            >
-              <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-                </svg>
-                Lost
-              </span>
-              <span className={styles.badge}>{lostCount}</span>
-            </li>
           </ul>
 
           {/* Custom Labels Section */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px', padding: '0 8px 8px 8px', borderBottom: '1px solid #f1f5f9' }}>
-            <span style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.05em' }}>Labels</span>
+          <div 
+            onDragOver={(e) => {
+              e.preventDefault();
+            }}
+            onDrop={async (e) => {
+              e.preventDefault();
+              const draggedId = e.dataTransfer.getData("text/plain");
+              await handleLabelDrop(draggedId, null);
+            }}
+            style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              marginTop: '24px', 
+              padding: '8px', 
+              borderBottom: '1px solid #f1f5f9',
+              backgroundColor: '#f8fafc',
+              borderRadius: '6px',
+              cursor: 'default'
+            }}
+            title="Drop labels here to move them to the root level"
+          >
+            <span style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+                <line x1="7" y1="7" x2="7.01" y2="7"></line>
+              </svg>
+              Labels
+            </span>
             <button 
               onClick={handleCreateNewLabel}
               style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '16px', display: 'flex', alignItems: 'center', padding: '2px' }}
-              title="Add Label"
+              title="Add Root Label"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -1244,96 +1389,8 @@ export default function ChatApp() {
               </svg>
             </button>
           </div>
-          <ul className={styles.crmMenu}>
-            {customLabels.map((lbl) => {
-              const labelKey = `label:${lbl.name.toLowerCase()}`;
-              const count = contacts.filter(c => c.label === lbl.name.toLowerCase()).length;
-              return (
-                <li 
-                  key={lbl.id}
-                  onClick={() => setActiveMenuFilter(labelKey)}
-                  className={`${styles.crmMenuItem} ${activeMenuFilter === labelKey ? styles.crmMenuItemActive : ""}`}
-                >
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#a855f7' }}></span>
-                    {lbl.name}
-                  </span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span className={styles.badge}>{count}</span>
-                    <button 
-                      onClick={(e) => handleDeleteLabel(lbl.id, e)}
-                      className={styles.deleteLabelButton}
-                      title="Delete Label"
-                    >
-                      ×
-                    </button>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-
-          {/* Funnel Section */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px', padding: '0 8px 8px 8px', borderBottom: '1px solid #f1f5f9' }}>
-            <span style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.05em' }}>Funnel</span>
-            <button 
-              onClick={handleCreateNewFunnel}
-              style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '16px', display: 'flex', alignItems: 'center', padding: '2px' }}
-              title="Add Funnel Stage"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
-            </button>
-          </div>
-          <ul className={styles.crmMenu}>
-            {funnels.map((fun) => {
-              const funnelKey = `funnel:${fun.name.toLowerCase()}`;
-              const count = contacts.filter(c => c.funnelStage === fun.name.toLowerCase()).length;
-              
-              const nameLower = fun.name.toLowerCase();
-              let iconColor = "#94a3b8"; 
-              if (nameLower.includes("new")) iconColor = "#3b82f6"; 
-              else if (nameLower.includes("confirmation")) iconColor = "#f59e0b"; 
-              else if (nameLower.includes("work")) iconColor = "#10b981"; 
-              else if (nameLower.includes("success")) iconColor = "#16a34a"; 
-              else if (nameLower.includes("refusal")) iconColor = "#ef4444"; 
-
-              return (
-                <li 
-                  key={fun.id}
-                  onClick={() => setActiveMenuFilter(funnelKey)}
-                  className={`${styles.crmMenuItem} ${activeMenuFilter === funnelKey ? styles.crmMenuItemActive : ""}`}
-                >
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill={nameLower.includes("success") || nameLower.includes("refusal") ? "none" : iconColor} stroke={iconColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      {nameLower.includes("success") ? (
-                        <polyline points="20 6 9 17 4 12"></polyline>
-                      ) : nameLower.includes("refusal") ? (
-                        <>
-                          <line x1="18" y1="6" x2="6" y2="18"></line>
-                          <line x1="6" y1="6" x2="18" y2="18"></line>
-                        </>
-                      ) : (
-                        <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
-                      )}
-                    </svg>
-                    {fun.name}
-                  </span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span className={styles.badge}>{count}</span>
-                    <button 
-                      onClick={(e) => handleDeleteFunnel(fun.id, e)}
-                      className={styles.deleteLabelButton}
-                      title="Delete Funnel Stage"
-                    >
-                      ×
-                    </button>
-                  </div>
-                </li>
-              );
-            })}
+          <ul className={styles.crmMenu} style={{ marginTop: '8px' }}>
+            {renderLabelTree(null, 0)}
           </ul>
         </div>
       )}
@@ -1446,54 +1503,140 @@ export default function ChatApp() {
                   ★
                 </button>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: '12px', fontWeight: '500', color: '#64748b' }}>{activeContact.id}</span>
-                <span style={{ fontSize: '10px', color: '#cbd5e1' }}>|</span>
-                <span style={{
-                  fontSize: '11px',
-                  fontWeight: '600',
-                  padding: '2px 8px',
-                  borderRadius: '12px',
-                  backgroundColor: 
-                    activeContact.funnelStage === 'success' ? '#ecfdf5' : 
-                    activeContact.funnelStage === 'refusal' ? '#fef2f2' : 
-                    activeContact.funnelStage ? '#eff6ff' : '#f1f5f9',
-                  color: 
-                    activeContact.funnelStage === 'success' ? '#047857' : 
-                    activeContact.funnelStage === 'refusal' ? '#b91c1c' : 
-                    activeContact.funnelStage ? '#1d4ed8' : '#475569',
-                }}>
-                  {activeContact.funnelStage ? (funnels.find(f => f.name.toLowerCase() === activeContact.funnelStage)?.name || activeContact.funnelStage) : "Unsorted"}
-                </span>
+                {(() => {
+                  const assignedIds = activeContact.labels || [];
+                  const assigned = customLabels.filter(l => assignedIds.includes(l.id));
+                  if (assigned.length === 0) return null;
+                  return (
+                    <>
+                      <span style={{ fontSize: '10px', color: '#cbd5e1' }}>|</span>
+                      {assigned.map(lbl => (
+                        <span 
+                          key={lbl.id} 
+                          style={{
+                            fontSize: '10px',
+                            fontWeight: '600',
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            backgroundColor: '#f3e8ff',
+                            color: '#6b21a8'
+                          }}
+                        >
+                          {lbl.name}
+                        </span>
+                      ))}
+                    </>
+                  );
+                })()}
               </div>
             </div>
           </div>
 
           <div className={styles.chatHeaderRight}>
-            {/* Funnel Stage Dropdown */}
-            <select 
-              className={styles.statusSelect} 
-              value={activeContact.funnelStage || ""}
-              onChange={(e) => handleFunnelStageChange(e.target.value)}
-            >
-              <option value="">Unsorted</option>
-              {funnels.map((fun) => (
-                <option key={fun.id} value={fun.name.toLowerCase()}>{fun.name}</option>
-              ))}
-            </select>
+            {/* Labels Multi-Select Popover */}
+            <div style={{ position: 'relative' }}>
+              <button 
+                onClick={() => setShowLabelDropdown(!showLabelDropdown)}
+                className={styles.statusSelect}
+                style={{ 
+                  backgroundColor: '#f3e8ff', 
+                  color: '#6b21a8', 
+                  border: '1px solid #d8b4fe',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  cursor: 'pointer',
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  minHeight: '34px'
+                }}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+                  <line x1="7" y1="7" x2="7.01" y2="7"></line>
+                </svg>
+                {(() => {
+                  const assignedIds = activeContact.labels || [];
+                  const assigned = customLabels.filter(l => assignedIds.includes(l.id));
+                  if (assigned.length === 0) return "Labels";
+                  if (assigned.length === 1) return assigned[0].name;
+                  return `${assigned.length} Labels`;
+                })()}
+              </button>
 
-            {/* Label Dropdown */}
-            <select 
-              className={styles.statusSelect} 
-              style={{ backgroundColor: '#f3e8ff', color: '#6b21a8', border: '1px solid #d8b4fe' }}
-              value={activeContact.label || ""}
-              onChange={(e) => handleLabelChange(e.target.value)}
-            >
-              <option value="">No Label</option>
-              {customLabels.map((lbl) => (
-                <option key={lbl.id} value={lbl.name.toLowerCase()}>{lbl.name}</option>
-              ))}
-            </select>
+              {showLabelDropdown && (
+                <>
+                  <div 
+                    onClick={() => setShowLabelDropdown(false)}
+                    style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999 }}
+                  />
+                  <div 
+                    style={{ 
+                      position: 'absolute', 
+                      top: '100%', 
+                      right: 0, 
+                      marginTop: '4px',
+                      backgroundColor: 'white', 
+                      border: '1px solid #e2e8f0', 
+                      borderRadius: '8px', 
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)', 
+                      padding: '8px',
+                      zIndex: 1000,
+                      minWidth: '200px',
+                      maxHeight: '300px',
+                      overflowY: 'auto'
+                    }}
+                  >
+                    <div style={{ fontSize: '11px', fontWeight: '700', color: '#94a3b8', padding: '4px 8px', textTransform: 'uppercase' }}>Select Labels</div>
+                    {customLabels.map((lbl) => {
+                      const isAssigned = (activeContact.labels || []).includes(lbl.id);
+                      return (
+                        <div 
+                          key={lbl.id}
+                          onClick={async () => {
+                            const currentLabels = activeContact.labels || [];
+                            let newLabels: string[];
+                            if (currentLabels.includes(lbl.id)) {
+                              newLabels = currentLabels.filter(id => id !== lbl.id);
+                            } else {
+                              newLabels = [...currentLabels, lbl.id];
+                            }
+                            const contactRef = doc(db, "contacts", activeContact.id);
+                            await updateDoc(contactRef, {
+                              labels: newLabels
+                            });
+                          }}
+                          style={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: '8px', 
+                            padding: '6px 8px', 
+                            cursor: 'pointer',
+                            borderRadius: '4px',
+                            backgroundColor: isAssigned ? '#f5f3ff' : 'transparent',
+                            transition: 'background-color 0.15s'
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = isAssigned ? '#ede9fe' : '#f8fafc'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = isAssigned ? '#f5f3ff' : 'transparent'; }}
+                        >
+                          <input 
+                            type="checkbox" 
+                            checked={isAssigned}
+                            onChange={() => {}} // handled by div click
+                            style={{ cursor: 'pointer' }}
+                          />
+                          <span style={{ fontSize: '13px', color: '#334155' }}>{lbl.name}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
 
             {/* Responsible Person Selector */}
             <div style={{ position: "relative" }}>
