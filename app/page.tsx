@@ -105,6 +105,7 @@ export default function ChatApp() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   // Sync custom labels from Firestore
   useEffect(() => {
@@ -725,64 +726,143 @@ export default function ChatApp() {
     const messageText = inputText;
     const fileToSend = selectedFile;
     
-    setInputText(""); // Clear input early for responsive feel
-    setSelectedFile(null); // Clear file selection early
+    setUploadError(null); // Clear any previous error before starting
 
     if (fileToSend) {
       setUploading(true);
-      try {
-        const storageRef = ref(storage, `attachments/${activeChatId}/${Date.now()}_${fileToSend.name}`);
-        const uploadTask = uploadBytesResumable(storageRef, fileToSend);
-        
-        uploadTask.on('state_changed', 
-          (snapshot) => {
-            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-            setUploadProgress(Math.round(progress));
-          }, 
-          (error) => {
-            console.error("Upload failed:", error);
-            alert("Upload failed: " + error.message);
+      const useLocalUpload = process.env.NEXT_PUBLIC_USE_LOCAL_UPLOAD === "true";
+
+      if (useLocalUpload) {
+        try {
+          const formData = new FormData();
+          formData.append("file", fileToSend);
+          formData.append("contactId", activeChatId);
+
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", "/api/chat/upload", true);
+          
+          xhr.upload.onprogress = (event) => {
+            if (event.lengthComputable) {
+              const progress = (event.loaded / event.total) * 100;
+              setUploadProgress(Math.round(progress));
+            }
+          };
+
+          xhr.onload = async () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              try {
+                const result = JSON.parse(xhr.responseText);
+                if (result.success) {
+                  const downloadURL = result.url;
+                  let mediaType = "document";
+                  if (fileToSend.type.startsWith("image/")) mediaType = "image";
+                  else if (fileToSend.type.startsWith("video/")) mediaType = "video";
+                  
+                  const response = await fetch("/api/chat/send", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      contactId: activeChatId,
+                      text: messageText,
+                      mediaUrl: downloadURL,
+                      mediaType: mediaType,
+                      senderName: currentUser ? currentUser.name : "Staff",
+                    }),
+                  });
+                  const sendResult = await response.json();
+                  if (sendResult.success) {
+                    setSelectedFile(null);
+                    setInputText("");
+                  } else {
+                    setUploadError(sendResult.error || "Failed to send message via Twilio API");
+                  }
+                } else {
+                  setUploadError(result.error || "Local upload failed");
+                }
+              } catch (err: any) {
+                setUploadError("Failed to parse local upload response: " + err.message);
+              }
+            } else {
+              setUploadError(`Local upload failed with status code: ${xhr.status}`);
+            }
             setUploading(false);
             setUploadProgress(0);
-          }, 
-          async () => {
-            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-            let mediaType = "document";
-            if (fileToSend.type.startsWith("image/")) mediaType = "image";
-            else if (fileToSend.type.startsWith("video/")) mediaType = "video";
-            
-            try {
-              const response = await fetch("/api/chat/send", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  contactId: activeChatId,
-                  text: messageText,
-                  mediaUrl: downloadURL,
-                  mediaType: mediaType,
-                  senderName: currentUser ? currentUser.name : "Staff",
-                }),
-              });
-              const result = await response.json();
-              if (!result.success) {
-                console.error("Failed to send message via Twilio API:", result.error);
-              }
-            } catch (err) {
-              console.error("Error calling send message API:", err);
-            } finally {
+          };
+
+          xhr.onerror = () => {
+            setUploadError("Network error occurred during local upload");
+            setUploading(false);
+            setUploadProgress(0);
+          };
+
+          xhr.send(formData);
+        } catch (err: any) {
+          console.error("Error in local upload flow:", err);
+          setUploadError(err.message || "Failed to initiate local upload");
+          setUploading(false);
+          setUploadProgress(0);
+        }
+      } else {
+        // Firebase Cloud Storage upload flow
+        try {
+          const storageRef = ref(storage, `attachments/${activeChatId}/${Date.now()}_${fileToSend.name}`);
+          const uploadTask = uploadBytesResumable(storageRef, fileToSend);
+          
+          uploadTask.on('state_changed', 
+            (snapshot) => {
+              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+              setUploadProgress(Math.round(progress));
+            }, 
+            (error) => {
+              console.error("Upload failed:", error);
+              setUploadError(error.message || "Upload failed. Storage rules may be blocking access.");
               setUploading(false);
               setUploadProgress(0);
+            }, 
+            async () => {
+              try {
+                const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                let mediaType = "document";
+                if (fileToSend.type.startsWith("image/")) mediaType = "image";
+                else if (fileToSend.type.startsWith("video/")) mediaType = "video";
+                
+                const response = await fetch("/api/chat/send", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    contactId: activeChatId,
+                    text: messageText,
+                    mediaUrl: downloadURL,
+                    mediaType: mediaType,
+                    senderName: currentUser ? currentUser.name : "Staff",
+                  }),
+                });
+                const result = await response.json();
+                if (result.success) {
+                  setSelectedFile(null); // Only clear on success
+                  setInputText(""); // Only clear on success
+                } else {
+                  setUploadError(result.error || "Failed to send message via Twilio API");
+                }
+              } catch (err: any) {
+                console.error("Error calling send message API:", err);
+                setUploadError(err.message || "Failed to send message via Twilio API");
+              } finally {
+                setUploading(false);
+                setUploadProgress(0);
+              }
             }
-          }
-        );
-      } catch (err: any) {
-        console.error("Error in upload flow:", err);
-        alert("Failed to initiate upload: " + err.message);
-        setUploading(false);
-        setUploadProgress(0);
+          );
+        } catch (err: any) {
+          console.error("Error in upload flow:", err);
+          setUploadError(err.message || "Failed to initiate upload");
+          setUploading(false);
+          setUploadProgress(0);
+        }
       }
     } else {
       // Text-only message flow
+      setInputText(""); // Clear input early for responsive feel
       const isWelcomeTemplate = messageText.toLowerCase().includes("welcome") || messageText.toLowerCase().includes("choyal");
 
       try {
@@ -1211,41 +1291,59 @@ export default function ChatApp() {
         {selectedFile && (
           <div style={{
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
+            flexDirection: 'column',
             padding: '10px 16px',
             background: '#f8fafc',
             borderTop: '1px solid #e2e8f0',
             borderBottom: '1px solid #e2e8f0',
+            gap: '8px'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ fontSize: '24px' }}>
-                {selectedFile.type.startsWith("image/") ? "🖼️" : selectedFile.type.startsWith("video/") ? "🎥" : "📄"}
-              </span>
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ fontSize: '13px', fontWeight: '600', color: '#1e293b' }}>
-                  {selectedFile.name}
-                </span>
-                <span style={{ fontSize: '11px', color: '#64748b' }}>
-                  {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                </span>
-              </div>
-            </div>
-            
-            {uploading ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ width: '100px', height: '6px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
-                  <div style={{ width: `${uploadProgress}%`, height: '100%', background: '#3b82f6', transition: 'width 0.1s ease-out' }}></div>
+                <span style={{ fontSize: '24px' }}>
+                  {selectedFile.type.startsWith("image/") ? "🖼️" : selectedFile.type.startsWith("video/") ? "🎥" : "📄"}
+                </span>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontSize: '13px', fontWeight: '600', color: '#1e293b' }}>
+                    {selectedFile.name}
+                  </span>
+                  <span style={{ fontSize: '11px', color: '#64748b' }}>
+                    {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                  </span>
                 </div>
-                <span style={{ fontSize: '12px', color: '#3b82f6', fontWeight: 'bold' }}>{uploadProgress}%</span>
               </div>
-            ) : (
-              <button 
-                onClick={() => setSelectedFile(null)} 
-                style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#ef4444', fontSize: '18px', padding: '4px' }}
-              >
-                ✕
-              </button>
+              
+              {uploading ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ width: '100px', height: '6px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
+                    <div style={{ width: `${uploadProgress}%`, height: '100%', background: '#3b82f6', transition: 'width 0.1s ease-out' }}></div>
+                  </div>
+                  <span style={{ fontSize: '12px', color: '#3b82f6', fontWeight: 'bold' }}>{uploadProgress}%</span>
+                </div>
+              ) : (
+                <button 
+                  onClick={() => {
+                    setSelectedFile(null);
+                    setUploadError(null);
+                  }} 
+                  style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#ef4444', fontSize: '18px', padding: '4px' }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            {uploadError && (
+              <div style={{
+                color: '#ef4444',
+                fontSize: '12px',
+                fontWeight: '500',
+                background: '#fef2f2',
+                padding: '6px 10px',
+                borderRadius: '6px',
+                border: '1px solid #fca5a5'
+              }}>
+                ⚠️ {uploadError}. Please ensure Firebase Storage is enabled in Console and rules are public.
+              </div>
             )}
           </div>
         )}
@@ -1258,7 +1356,10 @@ export default function ChatApp() {
             accept="image/*,video/*,application/pdf"
             onChange={(e) => {
               const file = e.target.files?.[0];
-              if (file) setSelectedFile(file);
+              if (file) {
+                setSelectedFile(file);
+                setUploadError(null);
+              }
             }}
           />
           <button 
