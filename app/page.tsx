@@ -480,7 +480,17 @@ export default function ChatApp() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  const activeContact = contacts.find((c) => c.id === activeChatId) || contacts[0] || INITIAL_CONTACTS[0];
+  const activeContact = contacts.find((c) => c.id === activeChatId) || (activeChatId ? {
+    id: activeChatId,
+    name: activeChatId,
+    preview: "No messages yet",
+    time: "",
+    statusText: "WhatsApp • Online",
+    avatar: undefined,
+    responsibleId: undefined,
+    statusSelect: undefined,
+    label: undefined
+  } as unknown as Contact : (contacts[0] || INITIAL_CONTACTS[0]));
   const messages = allMessages[activeChatId] || [];
 
   const is24HourWindowActive = () => {
@@ -1106,6 +1116,41 @@ export default function ChatApp() {
                 </div>
               );
             })}
+            {(() => {
+              const cleanedQuery = searchQuery.replace(/[^\d+]/g, "");
+              const isNumeric = /^\+?\d{8,15}$/.test(cleanedQuery);
+              const exists = contacts.some(c => c.id === cleanedQuery || c.id.replace(/[^\d+]/g, "") === cleanedQuery);
+              if (isNumeric && !exists) {
+                return (
+                  <div
+                    className={styles.contactItem}
+                    style={{ 
+                      border: '1px dashed #10b981', 
+                      backgroundColor: '#f0fdf4', 
+                      margin: '8px', 
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      padding: '12px'
+                    }}
+                    onClick={() => {
+                      setActiveChatId(cleanedQuery);
+                      setSearchQuery("");
+                    }}
+                  >
+                    <div className={styles.contactAvatar} style={{ backgroundColor: '#10b981', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 'bold' }}>
+                      +
+                    </div>
+                    <div className={styles.contactInfo}>
+                      <div className={styles.contactHeader}>
+                        <span className={styles.contactName} style={{ color: '#15803d', fontWeight: '600' }}>Start chat with:</span>
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#166534', marginTop: '2px', fontWeight: '500' }}>{cleanedQuery}</div>
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
           </div>
         </div>
       )}

@@ -94,9 +94,12 @@ export async function POST(request: Request) {
     // Update contacts list metadata to surface latest message preview
     const contactRef = doc(db, "contacts", contactId);
     await setDoc(contactRef, {
+      id: contactId,
+      name: contactId,
       preview: finalMsgText.length > 50 ? finalMsgText.substring(0, 47) + "..." : finalMsgText,
       time: timeString,
       lastUpdated: serverTimestamp(),
+      statusText: "WhatsApp • Online",
     }, { merge: true });
 
     return NextResponse.json({ 
