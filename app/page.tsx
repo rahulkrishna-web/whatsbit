@@ -1416,10 +1416,7 @@ export default function ChatApp() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <div style={{ padding: '8px 16px', fontSize: '12px', background: '#f1f5f9', borderBottom: '1px solid #e2e8f0', color: '#475569' }}>
-            Debug: Filter={activeMenuFilter} | UserID={currentUser?.id} | MatchCount={filteredContacts.length} | myCount={myCount}
-          </div>
-          <div className={styles.contactList}>
+          <div className={styles.contactList} key={activeMenuFilter + "_" + searchQuery}>
             {filteredContacts.map((contact) => {
               const isActive = contact.id === activeChatId;
               return (
