@@ -620,6 +620,14 @@ export default function ChatApp() {
     }
   };
 
+  const getMediaUrl = (url?: string) => {
+    if (!url) return "";
+    if (url.includes("api.twilio.com")) {
+      return `/api/chat/media-proxy?url=${encodeURIComponent(url)}`;
+    }
+    return url;
+  };
+
   const formatTimeIST = (msg: Message) => {
     if (msg.timestamp) {
       try {
@@ -1328,26 +1336,26 @@ export default function ChatApp() {
                         <div style={{ marginBottom: '8px' }}>
                           {msg.mediaType === "image" || (!msg.mediaType && (msg.mediaUrl.match(/\.(jpeg|jpg|gif|png|webp)/i) || msg.mediaUrl.includes("api.twilio.com"))) ? (
                             <img 
-                              src={msg.mediaUrl} 
+                              src={getMediaUrl(msg.mediaUrl)} 
                               alt="Attachment" 
                               style={{ maxWidth: "100%", maxHeight: "240px", borderRadius: "8px", display: "block", objectFit: "cover", cursor: "pointer" }} 
-                              onClick={() => setActiveLightboxImage(msg.mediaUrl || null)}
+                              onClick={() => setActiveLightboxImage(getMediaUrl(msg.mediaUrl) || null)}
                             />
                           ) : msg.mediaType === "video" || (!msg.mediaType && msg.mediaUrl.match(/\.(mp4|webm|ogg)/i)) ? (
                             <video 
-                              src={msg.mediaUrl} 
+                              src={getMediaUrl(msg.mediaUrl)} 
                               controls 
                               style={{ maxWidth: "100%", maxHeight: "240px", borderRadius: "8px", display: "block" }} 
                             />
                           ) : msg.mediaType === "audio" || (!msg.mediaType && msg.mediaUrl.match(/\.(mp3|wav|ogg|m4a|aac|amr)/i)) ? (
                             <audio 
-                              src={msg.mediaUrl} 
+                              src={getMediaUrl(msg.mediaUrl)} 
                               controls 
                               style={{ maxWidth: "100%", display: "block", marginTop: "4px" }} 
                             />
                           ) : (
                             <a 
-                              href={msg.mediaUrl} 
+                              href={getMediaUrl(msg.mediaUrl)} 
                               target="_blank" 
                               rel="noopener noreferrer"
                               style={{
