@@ -18,6 +18,25 @@ function cleanPhone(phone: string): string {
   return cleaned;
 }
 
+function getCleanFileName(url: string): string {
+  if (!url) return "document.pdf";
+  try {
+    const pathSeg = url.split("?")[0].split("/").pop() || "";
+    const decoded = decodeURIComponent(pathSeg);
+    const lastPart = decoded.split("/").pop() || "";
+    
+    let clean = lastPart.replace(/^attachments_/, "").replace(/^uploads_/, "");
+    // Remove phone pattern prefix and timestamp
+    clean = clean.replace(/^\+?\d+_[0-9]+_/, ""); 
+    clean = clean.replace(/^[0-9]+_/, ""); 
+    // Remove typical UUID prefix
+    clean = clean.replace(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}_/, "");
+    return clean || "document.pdf";
+  } catch (e) {
+    return "document.pdf";
+  }
+}
+
 import { db, storage } from "../lib/firebase";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { 
@@ -111,6 +130,11 @@ export default function ChatApp() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [stagedMediaUrl, setStagedMediaUrl] = useState<string | null>(null);
+  const [stagedMediaType, setStagedMediaType] = useState<string | null>(null);
+  const [stagedFileName, setStagedFileName] = useState<string | null>(null);
+  const [activeDocumentUrl, setActiveDocumentUrl] = useState<string | null>(null);
+  const [activeDocumentName, setActiveDocumentName] = useState<string | null>(null);
 
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
@@ -899,149 +923,168 @@ export default function ChatApp() {
     });
   };
 
-  const handleSend = async () => {
-    if (!inputText.trim() && !selectedFile) return;
+  const handleUploadFile = async (fileToSend: File) => {
+    setSelectedFile(fileToSend);
+    setUploading(true);
+    setUploadProgress(0);
+    setUploadError(null);
 
-    const messageText = inputText;
-    const fileToSend = selectedFile;
-    
-    setUploadError(null); // Clear any previous error before starting
+    const useLocalUpload = process.env.NEXT_PUBLIC_USE_LOCAL_UPLOAD === "true";
 
-    if (fileToSend) {
-      setUploading(true);
-      const useLocalUpload = process.env.NEXT_PUBLIC_USE_LOCAL_UPLOAD === "true";
+    if (useLocalUpload) {
+      try {
+        const formData = new FormData();
+        formData.append("file", fileToSend);
+        formData.append("contactId", activeChatId);
 
-      if (useLocalUpload) {
-        try {
-          const formData = new FormData();
-          formData.append("file", fileToSend);
-          formData.append("contactId", activeChatId);
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", "/api/chat/upload", true);
+        
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            const progress = (event.loaded / event.total) * 100;
+            setUploadProgress(Math.round(progress));
+          }
+        };
 
-          const xhr = new XMLHttpRequest();
-          xhr.open("POST", "/api/chat/upload", true);
-          
-          xhr.upload.onprogress = (event) => {
-            if (event.lengthComputable) {
-              const progress = (event.loaded / event.total) * 100;
-              setUploadProgress(Math.round(progress));
-            }
-          };
-
-          xhr.onload = async () => {
-            if (xhr.status >= 200 && xhr.status < 300) {
-              try {
-                const result = JSON.parse(xhr.responseText);
-                if (result.success) {
-                  const downloadURL = result.url;
-                  let mediaType = "document";
-                  if (fileToSend.type.startsWith("image/")) mediaType = "image";
-                  else if (fileToSend.type.startsWith("video/")) mediaType = "video";
-                  
-                  const response = await fetch("/api/chat/send", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      contactId: activeChatId,
-                      text: messageText,
-                      mediaUrl: downloadURL,
-                      mediaType: mediaType,
-                      senderName: currentUser ? currentUser.name : "Staff",
-                    }),
-                  });
-                  const sendResult = await response.json();
-                  if (sendResult.success) {
-                    setSelectedFile(null);
-                    setInputText("");
-                  } else {
-                    setUploadError(sendResult.error || "Failed to send message via Twilio API");
-                  }
-                } else {
-                  setUploadError(result.error || "Local upload failed");
-                }
-              } catch (err: any) {
-                setUploadError("Failed to parse local upload response: " + err.message);
-              }
-            } else {
-              setUploadError(`Local upload failed with status code: ${xhr.status}`);
-            }
-            setUploading(false);
-            setUploadProgress(0);
-          };
-
-          xhr.onerror = () => {
-            setUploadError("Network error occurred during local upload");
-            setUploading(false);
-            setUploadProgress(0);
-          };
-
-          xhr.send(formData);
-        } catch (err: any) {
-          console.error("Error in local upload flow:", err);
-          setUploadError(err.message || "Failed to initiate local upload");
-          setUploading(false);
-          setUploadProgress(0);
-        }
-      } else {
-        // Firebase Cloud Storage upload flow
-        try {
-          const storageRef = ref(storage, `attachments/${activeChatId}/${Date.now()}_${fileToSend.name}`);
-          const uploadTask = uploadBytesResumable(storageRef, fileToSend);
-          
-          uploadTask.on('state_changed', 
-            (snapshot) => {
-              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-              setUploadProgress(Math.round(progress));
-            }, 
-            (error) => {
-              console.error("Upload failed:", error);
-              setUploadError(error.message || "Upload failed. Storage rules may be blocking access.");
-              setUploading(false);
-              setUploadProgress(0);
-            }, 
-            async () => {
-              try {
-                const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-                let mediaType = "document";
+        xhr.onload = async () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const result = JSON.parse(xhr.responseText);
+              if (result.success) {
+                const downloadURL = result.url;
+                let mediaType: "document" | "image" | "video" | "audio" = "document";
                 if (fileToSend.type.startsWith("image/")) mediaType = "image";
                 else if (fileToSend.type.startsWith("video/")) mediaType = "video";
                 
-                const response = await fetch("/api/chat/send", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    contactId: activeChatId,
-                    text: messageText,
-                    mediaUrl: downloadURL,
-                    mediaType: mediaType,
-                    senderName: currentUser ? currentUser.name : "Staff",
-                  }),
-                });
-                const result = await response.json();
-                if (result.success) {
-                  setSelectedFile(null); // Only clear on success
-                  setInputText(""); // Only clear on success
-                } else {
-                  setUploadError(result.error || "Failed to send message via Twilio API");
-                }
-              } catch (err: any) {
-                console.error("Error calling send message API:", err);
-                setUploadError(err.message || "Failed to send message via Twilio API");
-              } finally {
-                setUploading(false);
-                setUploadProgress(0);
+                setStagedMediaUrl(downloadURL);
+                setStagedMediaType(mediaType);
+                setStagedFileName(fileToSend.name);
+              } else {
+                setUploadError(result.error || "Local upload failed");
+                setSelectedFile(null);
               }
+            } catch (err: any) {
+              setUploadError("Failed to parse local upload response: " + err.message);
+              setSelectedFile(null);
             }
-          );
-        } catch (err: any) {
-          console.error("Error in upload flow:", err);
-          setUploadError(err.message || "Failed to initiate upload");
+          } else {
+            setUploadError(`Local upload failed with status code: ${xhr.status}`);
+            setSelectedFile(null);
+          }
           setUploading(false);
           setUploadProgress(0);
+        };
+
+        xhr.onerror = () => {
+          setUploadError("Network error occurred during local upload");
+          setSelectedFile(null);
+          setUploading(false);
+          setUploadProgress(0);
+        };
+
+        xhr.send(formData);
+      } catch (err: any) {
+        console.error("Error in local upload flow:", err);
+        setUploadError(err.message || "Failed to initiate local upload");
+        setSelectedFile(null);
+        setUploading(false);
+        setUploadProgress(0);
+      }
+    } else {
+      // Firebase Cloud Storage upload flow
+      try {
+        const cleanName = getCleanFileName(fileToSend.name);
+        const storageRef = ref(storage, `attachments_${activeChatId}_${Date.now()}_${cleanName}`);
+        
+        const metadata = {
+          contentDisposition: `inline; filename="${cleanName}"`,
+          contentType: fileToSend.type
+        };
+
+        const uploadTask = uploadBytesResumable(storageRef, fileToSend, metadata);
+        
+        uploadTask.on('state_changed', 
+          (snapshot) => {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            setUploadProgress(Math.round(progress));
+          }, 
+          (error) => {
+            console.error("Upload failed:", error);
+            setUploadError(error.message || "Upload failed. Storage rules may be blocking access.");
+            setSelectedFile(null);
+            setUploading(false);
+            setUploadProgress(0);
+          }, 
+          async () => {
+            try {
+              const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+              let mediaType: "document" | "image" | "video" | "audio" = "document";
+              if (fileToSend.type.startsWith("image/")) mediaType = "image";
+              else if (fileToSend.type.startsWith("video/")) mediaType = "video";
+              
+              setStagedMediaUrl(downloadURL);
+              setStagedMediaType(mediaType);
+              setStagedFileName(fileToSend.name);
+            } catch (err: any) {
+              console.error("Error getting download URL:", err);
+              setUploadError(err.message || "Failed to get download URL");
+              setSelectedFile(null);
+            } finally {
+              setUploading(false);
+              setUploadProgress(0);
+            }
+          }
+        );
+      } catch (err: any) {
+        console.error("Error in upload flow:", err);
+        setUploadError(err.message || "Failed to initiate upload");
+        setSelectedFile(null);
+        setUploading(false);
+        setUploadProgress(0);
+      }
+    }
+  };
+
+  const handleSend = async () => {
+    if (!inputText.trim() && !stagedMediaUrl) return;
+
+    const messageText = inputText;
+    const mediaUrlToSend = stagedMediaUrl;
+    const mediaTypeToSend = stagedMediaType;
+
+    // Reset input fields immediately to prevent double sending
+    setInputText("");
+    setSelectedFile(null);
+    setStagedMediaUrl(null);
+    setStagedMediaType(null);
+    setStagedFileName(null);
+    setUploadError(null);
+    setUploadProgress(0);
+
+    if (mediaUrlToSend) {
+      try {
+        const response = await fetch("/api/chat/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contactId: activeChatId,
+            text: messageText,
+            mediaUrl: mediaUrlToSend,
+            mediaType: mediaTypeToSend,
+            senderName: currentUser ? currentUser.name : "Staff",
+          }),
+        });
+        const result = await response.json();
+        if (!result.success) {
+          setUploadError(result.error || "Failed to send message via Twilio API");
         }
+      } catch (err: any) {
+        console.error("Error calling send message API:", err);
+        setUploadError(err.message || "Failed to send message via Twilio API");
       }
     } else {
       // Text-only message flow
-      setInputText(""); // Clear input early for responsive feel
       const isWelcomeTemplate = messageText.toLowerCase().includes("welcome") || messageText.toLowerCase().includes("choyal");
 
       try {
@@ -1758,55 +1801,120 @@ export default function ChatApp() {
                     </div>
                   );
                 }
+                const mediaUrl = msg.mediaUrl || "";
                 return (
                   <div key={msg.id} className={`${styles.messageWrapper} ${msg.isSent ? styles.sent : styles.received}`}>
                     <div className={styles.messageBubble}>
                       {msg.mediaUrl && (
                         <div style={{ marginBottom: '8px' }}>
-                          {msg.mediaType === "image" || (!msg.mediaType && (msg.mediaUrl.match(/\.(jpeg|jpg|gif|png|webp)/i) || msg.mediaUrl.includes("api.twilio.com"))) ? (
+                          {msg.mediaType === "image" || (!msg.mediaType && (mediaUrl.match(/\.(jpeg|jpg|gif|png|webp)/i) || mediaUrl.includes("api.twilio.com"))) ? (
                             <img 
-                              src={getMediaUrl(msg.mediaUrl)} 
+                              src={getMediaUrl(mediaUrl)} 
                               alt="Attachment" 
                               style={{ maxWidth: "100%", maxHeight: "240px", borderRadius: "8px", display: "block", objectFit: "cover", cursor: "pointer" }} 
-                              onClick={() => openLightbox(getMediaUrl(msg.mediaUrl))}
+                              onClick={() => openLightbox(getMediaUrl(mediaUrl))}
                             />
-                          ) : msg.mediaType === "video" || (!msg.mediaType && msg.mediaUrl.match(/\.(mp4|webm|ogg)/i)) ? (
+                          ) : msg.mediaType === "video" || (!msg.mediaType && mediaUrl.match(/\.(mp4|webm|ogg)/i)) ? (
                             <video 
-                              src={getMediaUrl(msg.mediaUrl)} 
+                              src={getMediaUrl(mediaUrl)} 
                               controls 
                               style={{ maxWidth: "100%", maxHeight: "240px", borderRadius: "8px", display: "block" }} 
                             />
-                          ) : msg.mediaType === "audio" || (!msg.mediaType && msg.mediaUrl.match(/\.(mp3|wav|ogg|m4a|aac|amr)/i)) ? (
+                          ) : msg.mediaType === "audio" || (!msg.mediaType && mediaUrl.match(/\.(mp3|wav|ogg|m4a|aac|amr)/i)) ? (
                             <audio 
-                              src={getMediaUrl(msg.mediaUrl)} 
+                              src={getMediaUrl(mediaUrl)} 
                               controls 
                               style={{ maxWidth: "100%", display: "block", marginTop: "4px" }} 
                             />
                           ) : (
-                            <a 
-                              href={getMediaUrl(msg.mediaUrl)} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
+                            <div 
+                              onClick={() => {
+                                const isPdf = mediaUrl.toLowerCase().match(/\.pdf(\?|$)/i);
+                                if (isPdf) {
+                                  setActiveDocumentUrl(getMediaUrl(mediaUrl));
+                                  setActiveDocumentName(getCleanFileName(mediaUrl));
+                                } else {
+                                  window.open(getMediaUrl(mediaUrl), '_blank');
+                                }
+                              }}
                               style={{
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: '8px',
-                                padding: '10px 12px',
-                                background: 'rgba(0,0,0,0.06)',
-                                borderRadius: '8px',
-                                textDecoration: 'none',
-                                color: 'inherit',
-                                fontSize: '13px',
-                                fontWeight: '500'
+                                gap: '12px',
+                                padding: '12px',
+                                background: 'rgba(255, 255, 255, 0.9)',
+                                border: '1px solid #e2e8f0',
+                                borderRadius: '10px',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                minWidth: '240px',
+                                maxWidth: '320px',
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.borderColor = '#cbd5e1';
+                                e.currentTarget.style.backgroundColor = '#f1f5f9';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.borderColor = '#e2e8f0';
+                                e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
                               }}
                             >
-                              📄 View Document
-                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 'auto' }}>
+                              {/* Stylized PDF/Doc Icon */}
+                              <div style={{
+                                width: '40px',
+                                height: '48px',
+                                background: mediaUrl.toLowerCase().match(/\.pdf(\?|$)/i) ? '#fee2e2' : '#e0f2fe',
+                                borderRadius: '6px',
+                                border: `1px solid ${mediaUrl.toLowerCase().match(/\.pdf(\?|$)/i) ? '#fca5a5' : '#bae6fd'}`,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                position: 'relative',
+                                flexShrink: 0
+                              }}>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={mediaUrl.toLowerCase().match(/\.pdf(\?|$)/i) ? '#ef4444' : '#0284c7'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                  <polyline points="14 2 14 8 20 8" />
+                                </svg>
+                                <span style={{
+                                  position: 'absolute',
+                                  bottom: '3px',
+                                  background: mediaUrl.toLowerCase().match(/\.pdf(\?|$)/i) ? '#ef4444' : '#0284c7',
+                                  color: '#fff',
+                                  fontSize: '8px',
+                                  fontWeight: 'bold',
+                                  padding: '1px 3px',
+                                  borderRadius: '2px',
+                                  textTransform: 'uppercase',
+                                  lineHeight: 1
+                                }}>
+                                  {mediaUrl.toLowerCase().match(/\.pdf(\?|$)/i) ? 'PDF' : 'DOC'}
+                                </span>
+                              </div>
+
+                              <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', flex: 1 }}>
+                                <span style={{ 
+                                  fontSize: '13px', 
+                                  fontWeight: '600', 
+                                  color: '#1e293b',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis'
+                                }}>
+                                  {getCleanFileName(mediaUrl)}
+                                </span>
+                                <span style={{ fontSize: '11px', color: '#64748b', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  {mediaUrl.toLowerCase().match(/\.pdf(\?|$)/i) ? 'Click to view inline' : 'Click to download'}
+                                </span>
+                              </div>
+                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
                                 <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
                                 <polyline points="15 3 21 3 21 9" />
                                 <line x1="10" y1="14" x2="21" y2="3" />
                               </svg>
-                            </a>
+                            </div>
                           )}
                         </div>
                       )}
@@ -1888,6 +1996,9 @@ export default function ChatApp() {
                 <button 
                   onClick={() => {
                     setSelectedFile(null);
+                    setStagedMediaUrl(null);
+                    setStagedMediaType(null);
+                    setStagedFileName(null);
                     setUploadError(null);
                   }} 
                   style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#ef4444', fontSize: '18px', padding: '4px' }}
@@ -1921,8 +2032,7 @@ export default function ChatApp() {
             onChange={(e) => {
               const file = e.target.files?.[0];
               if (file) {
-                setSelectedFile(file);
-                setUploadError(null);
+                handleUploadFile(file);
               }
             }}
           />
@@ -2042,8 +2152,9 @@ export default function ChatApp() {
           ) : (
             <>
               <button 
-                onClick={() => fileInputRef.current?.click()} 
-                style={{ border: 'none', background: 'none', fontSize: '20px', cursor: 'pointer' }}
+                onClick={() => !uploading && fileInputRef.current?.click()} 
+                disabled={uploading}
+                style={{ border: 'none', background: 'none', fontSize: '20px', cursor: uploading ? 'not-allowed' : 'pointer', opacity: uploading ? 0.5 : 1 }}
               >
                 📎
               </button>
@@ -2195,16 +2306,27 @@ export default function ChatApp() {
 
               <input
                 type="text"
-                placeholder="Type a message..."
+                placeholder={uploading ? "Uploading attachment..." : "Type a message..."}
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                onKeyDown={(e) => e.key === 'Enter' && !uploading && handleSend()}
+                disabled={uploading}
                 className={styles.chatInputField}
+                style={uploading ? { opacity: 0.6, cursor: 'not-allowed' } : {}}
               />
-              <button onClick={handleSend} disabled={!inputText.trim() && !selectedFile} className={styles.sendButton}>
-                <svg className={styles.sendIcon} viewBox="0 0 24 24">
-                  <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path>
-                </svg>
+              <button 
+                onClick={handleSend} 
+                disabled={uploading || (!inputText.trim() && !stagedMediaUrl)} 
+                className={styles.sendButton}
+                style={uploading || (!inputText.trim() && !stagedMediaUrl) ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+              >
+                {uploading ? (
+                  <span className={styles.spinner} style={{ borderColor: '#fff', borderTopColor: 'transparent', width: '16px', height: '16px', display: 'inline-block' }}></span>
+                ) : (
+                  <svg className={styles.sendIcon} viewBox="0 0 24 24">
+                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path>
+                  </svg>
+                )}
               </button>
             </>
           )}
@@ -2335,6 +2457,119 @@ export default function ChatApp() {
               }}
               draggable={false}
             />
+          </div>
+        </div>
+      )}
+
+      {/* Inline Document / PDF Modal Popup */}
+      {activeDocumentUrl && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            backgroundColor: 'rgba(11, 20, 26, 0.85)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            flexDirection: 'column',
+            zIndex: 10000,
+            padding: '24px',
+            boxSizing: 'border-box'
+          }}
+          onClick={() => {
+            setActiveDocumentUrl(null);
+            setActiveDocumentName(null);
+          }}
+        >
+          <div 
+            style={{
+              backgroundColor: '#fff',
+              borderRadius: '12px',
+              display: 'flex',
+              flexDirection: 'column',
+              width: '100%',
+              height: '100%',
+              maxWidth: '1000px',
+              margin: '0 auto',
+              boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15), 0 10px 10px -5px rgba(0,0,0,0.04)',
+              overflow: 'hidden'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '16px 24px',
+              borderBottom: '1px solid #e2e8f0',
+              background: '#f8fafc'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
+                <span style={{ fontSize: '20px' }}>📄</span>
+                <span style={{ fontSize: '15px', fontWeight: '600', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {activeDocumentName || "Document Viewer"}
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <a 
+                  href={activeDocumentUrl} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontSize: '13px',
+                    color: '#2563eb',
+                    textDecoration: 'none',
+                    fontWeight: '500',
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    border: '1px solid #e2e8f0',
+                    background: '#fff',
+                    transition: 'all 0.15s'
+                  }}
+                >
+                  Open in New Tab
+                </a>
+                <button 
+                  onClick={() => {
+                    setActiveDocumentUrl(null);
+                    setActiveDocumentName(null);
+                  }}
+                  style={{
+                    border: 'none',
+                    background: '#f1f5f9',
+                    color: '#64748b',
+                    fontSize: '18px',
+                    cursor: 'pointer',
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all 0.15s'
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body (Iframe) */}
+            <div style={{ flex: 1, position: 'relative', background: '#f1f5f9' }}>
+              <iframe 
+                src={`${activeDocumentUrl}#toolbar=1`}
+                width="100%" 
+                height="100%" 
+                style={{ border: 'none' }}
+                title="Document Viewer"
+              />
+            </div>
           </div>
         </div>
       )}
