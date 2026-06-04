@@ -32,6 +32,38 @@ export async function POST(request: Request) {
       minute: "2-digit",
       hour12: true
     });
+
+    const finalMsgText = text || (mediaType ? `Sent an attachment: ${mediaType}` : "Sent an attachment");
+
+    if (contactId.startsWith("group-")) {
+      const messagesRef = collection(db, "contacts", contactId, "messages");
+      const mockSid = `group-msg-${Date.now()}`;
+      await addDoc(messagesRef, {
+        text: finalMsgText,
+        isSent: true,
+        time: timeString,
+        status: "read",
+        twilioSid: mockSid,
+        timestamp: serverTimestamp(),
+        senderName: senderName || null,
+        mediaUrl: mediaUrl || null,
+        mediaType: mediaType || null,
+      });
+
+      const contactRef = doc(db, "contacts", contactId);
+      await setDoc(contactRef, {
+        preview: finalMsgText.length > 50 ? finalMsgText.substring(0, 47) + "..." : finalMsgText,
+        time: timeString,
+        lastUpdated: serverTimestamp(),
+      }, { merge: true });
+
+      return NextResponse.json({ 
+        success: true, 
+        sid: mockSid, 
+        error: null 
+      });
+    }
+
     const cleanContactId = cleanPhone(contactId);
     const recipient = `whatsapp:${cleanContactId}`;
 
@@ -73,9 +105,6 @@ export async function POST(request: Request) {
       console.warn("Twilio credentials not configured. Simulating message write to Firestore.");
       twilioMessageSid = `mock-${Date.now()}`;
     }
-
-    // Use the passed text directly as final stored message content or placeholder for media
-    const finalMsgText = text || (mediaType ? `Sent an attachment: ${mediaType}` : "Sent an attachment");
 
     // Write message to subcollection contacts/{contactId}/messages
     const messagesRef = collection(db, "contacts", contactId, "messages");

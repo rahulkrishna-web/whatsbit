@@ -17,6 +17,7 @@ function cleanPhone(phone: string): string {
   }
   return cleaned;
 }
+
 import { db, storage } from "../lib/firebase";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { 
@@ -27,10 +28,11 @@ import {
   doc, 
   setDoc, 
   getDoc,
-  addDoc, 
-  updateDoc, 
+  addDoc,
+  updateDoc,
   deleteDoc,
-  serverTimestamp 
+  writeBatch,
+  serverTimestamp
 } from "firebase/firestore";
 
 type Message = {
@@ -109,13 +111,17 @@ export default function ChatApp() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+
+  const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [selectedGroupParticipants, setSelectedGroupParticipants] = useState<string[]>([]);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [activeLightboxImage, setActiveLightboxImage] = useState<string | null>(null);
   const [zoomScale, setZoomScale] = useState<number>(1);
 
-  // Sync custom labels from Firestore
   useEffect(() => {
     const labelsRef = collection(db, "labels");
     const unsubscribe = onSnapshot(labelsRef, (snapshot) => {
@@ -131,21 +137,24 @@ export default function ChatApp() {
       });
       
       if (list.length === 0) {
-        // Seed default labels if empty
         const defaults = ["High Priority", "Warm Leads", "Follow Up Required", "Technical Support"];
-        defaults.forEach(async (name, index) => {
-          await addDoc(collection(db, "labels"), { 
+        const batch = writeBatch(db);
+        defaults.forEach((name, index) => {
+          const newDocRef = doc(collection(db, "labels"));
+          batch.set(newDocRef, {
             name,
             parentId: null,
             order: index
           });
         });
+        batch.commit();
       } else {
         // Sort by order
         list.sort((a, b) => (a.order || 0) - (b.order || 0));
         setCustomLabels(list);
       }
     });
+
     return () => unsubscribe();
   }, []);
 
