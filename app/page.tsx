@@ -317,6 +317,7 @@ export default function ChatApp() {
           errorCode: data.errorCode || "",
           errorMessage: data.errorMessage || "",
           timestamp: data.timestamp,
+          senderName: data.senderName || "",
         });
       });
 
@@ -595,6 +596,7 @@ export default function ChatApp() {
           text: template.text,
           useTemplate: true,
           templateSid: template.templateSid,
+          senderName: currentUser ? currentUser.name : "Staff",
         }),
       });
       const result = await response.json();
@@ -1443,45 +1445,52 @@ export default function ChatApp() {
             }}
           />
           {!is24HourWindowActive() ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '10px 14px',
-                borderRadius: '8px',
-                backgroundColor: '#fffbeb',
-                border: '1px solid #fef3c7',
-                color: '#b45309',
-                fontSize: '13px',
-                fontWeight: '500',
+            <div style={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              padding: '24px 20px', 
+              width: '100%', 
+              textAlign: 'center',
+              backgroundColor: '#fff',
+              borderRadius: '12px',
+              border: '1px dashed #cbd5e1',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+              margin: '8px 0'
+            }}>
+              <div style={{ fontSize: '28px', marginBottom: '8px' }}>💬</div>
+              <div style={{ 
+                fontSize: '14px', 
+                color: '#475569', 
+                fontWeight: '500', 
+                marginBottom: '16px' 
               }}>
-                <span style={{ fontSize: '16px' }}>⚠️</span>
-                <span>
-                  The 24-hour service window has expired or is inactive. You can only send pre-approved template messages.
-                </span>
+                Choose a message template to initiate a conversation with this contact.
               </div>
               
-              <div style={{ display: 'flex', justifyContent: 'flex-start', position: 'relative' }}>
+              <div style={{ position: 'relative' }}>
                 <button 
                   onClick={() => setShowTemplateDropdown(!showTemplateDropdown)} 
                   disabled={isSendingTemplate}
                   style={{ 
-                    border: '1px solid #cbd5e1', 
-                    background: '#fff', 
-                    color: '#1e293b',
-                    padding: '8px 16px',
-                    borderRadius: '20px',
+                    border: 'none', 
+                    background: '#10b981',
+                    color: '#fff',
+                    padding: '10px 24px',
+                    borderRadius: '24px',
                     fontSize: '13px',
                     fontWeight: '600',
                     cursor: isSendingTemplate ? 'not-allowed' : 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '6px',
+                    gap: '8px',
                     outline: 'none',
-                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                    opacity: isSendingTemplate ? 0.7 : 1
+                    boxShadow: '0 4px 6px -1px rgba(16, 185, 129, 0.2), 0 2px 4px -1px rgba(16, 185, 129, 0.1)',
+                    transition: 'all 0.2s',
                   }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = '#059669')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = '#10b981')}
                 >
                   {isSendingTemplate ? (
                     <>
@@ -1490,12 +1499,11 @@ export default function ChatApp() {
                     </>
                   ) : (
                     <>
-                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#475569' }}>
-                        <path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z" />
-                        <line x1="16" y1="8" x2="2" y2="22" />
-                        <line x1="17.5" y1="15" x2="9" y2="15" />
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
                       </svg>
-                      Select & Send Template <span style={{ fontSize: '8px' }}>▼</span>
+                      Select Template <span style={{ fontSize: '8px' }}>▼</span>
                     </>
                   )}
                 </button>
@@ -1504,19 +1512,20 @@ export default function ChatApp() {
                   <div style={{
                     position: 'absolute',
                     bottom: 'calc(100% + 8px)',
-                    left: 0,
+                    left: '50%',
+                    transform: 'translateX(-50%)',
                     width: '320px',
                     backgroundColor: '#fff',
                     border: '1px solid #e2e8f0',
-                    borderRadius: '8px',
-                    boxShadow: '0 -10px 15px -3px rgba(0, 0, 0, 0.1), 0 -4px 6px -2px rgba(0, 0, 0, 0.05)',
+                    borderRadius: '12px',
+                    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
                     padding: '8px',
                     zIndex: 100,
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '4px'
                   }}>
-                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', padding: '4px 8px', textTransform: 'uppercase', textAlign: 'left' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', padding: '6px 8px', textTransform: 'uppercase', textAlign: 'left' }}>
                       Select WhatsApp Template
                     </div>
                     {PREDEFINED_TEMPLATES.map((tmpl) => (
@@ -1527,8 +1536,8 @@ export default function ChatApp() {
                           border: 'none',
                           background: 'none',
                           textAlign: 'left',
-                          padding: '8px',
-                          borderRadius: '6px',
+                          padding: '10px',
+                          borderRadius: '8px',
                           cursor: 'pointer',
                           fontSize: '13px',
                           color: '#1e293b',
@@ -1538,7 +1547,7 @@ export default function ChatApp() {
                         onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                         title={tmpl.text}
                       >
-                        <div style={{ fontWeight: '600', marginBottom: '2px' }}>{tmpl.name}</div>
+                        <div style={{ fontWeight: '600', marginBottom: '2px', color: '#0f172a' }}>{tmpl.name}</div>
                         <div style={{ fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {tmpl.text}
                         </div>

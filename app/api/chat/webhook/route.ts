@@ -11,6 +11,8 @@ import {
   updateDoc, 
   serverTimestamp 
 } from "firebase/firestore";
+import { join } from "path";
+import { mkdir, writeFile } from "fs/promises";
 
 export async function POST(request: Request) {
   try {
@@ -71,7 +73,8 @@ export async function POST(request: Request) {
     let mediaUrl = "";
     let mediaType: "image" | "video" | "document" | null = null;
     if (numMedia > 0) {
-      mediaUrl = data.MediaUrl0 as string;
+      const originalMediaUrl = data.MediaUrl0 as string;
+      mediaUrl = originalMediaUrl;
       const mediaContentType = (data.MediaContentType0 || "") as string;
       if (mediaContentType.startsWith("image/")) {
         mediaType = "image";
@@ -79,6 +82,55 @@ export async function POST(request: Request) {
         mediaType = "video";
       } else {
         mediaType = "document";
+      }
+
+      // Download and save Twilio media locally to prevent auth issues in browser
+      if (originalMediaUrl && fromPhone) {
+        try {
+          const credentials = Buffer.from(`${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`).toString("base64");
+          const res = await fetch(originalMediaUrl, {
+            headers: {
+              Authorization: `Basic ${credentials}`
+            }
+          });
+          
+          if (res.ok) {
+            const contentType = res.headers.get("content-type") || mediaContentType || "";
+            const buffer = Buffer.from(await res.arrayBuffer());
+            
+            let ext = "bin";
+            if (contentType.includes("image/jpeg") || contentType.includes("image/jpg")) ext = "jpg";
+            else if (contentType.includes("image/png")) ext = "png";
+            else if (contentType.includes("image/gif")) ext = "gif";
+            else if (contentType.includes("image/webp")) ext = "webp";
+            else if (contentType.includes("video/mp4")) ext = "mp4";
+            else if (contentType.includes("video/webm")) ext = "webm";
+            else if (contentType.includes("audio/mpeg") || contentType.includes("audio/mp3")) ext = "mp3";
+            else if (contentType.includes("audio/ogg")) ext = "ogg";
+            else if (contentType.includes("audio/wav")) ext = "wav";
+            else if (contentType.includes("audio/amr")) ext = "amr";
+            else if (contentType.includes("audio/x-apple-asf") || contentType.includes("audio/m4a")) ext = "m4a";
+            else if (contentType.includes("application/pdf")) ext = "pdf";
+            
+            const relativeDir = join("uploads", fromPhone);
+            const uploadDir = join(process.cwd(), "public", relativeDir);
+            
+            await mkdir(uploadDir, { recursive: true });
+            
+            const filename = `${Date.now()}_incoming.${ext}`;
+            const filePath = join(uploadDir, filename);
+            await writeFile(filePath, buffer);
+            
+            const host = request.headers.get("host") || "";
+            const protocol = request.headers.get("x-forwarded-proto") || "http";
+            mediaUrl = `${protocol}://${host}/${relativeDir}/${filename}`;
+            console.log("Downloaded and saved Twilio media locally to:", mediaUrl);
+          } else {
+            console.error("Failed to download Twilio media, status:", res.status);
+          }
+        } catch (err) {
+          console.error("Error downloading Twilio media:", err);
+        }
       }
     }
 
