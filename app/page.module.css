@@ -67,6 +67,28 @@
   color: white;
 }
 
+.deleteLabelButton {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+  padding: 0 4px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.deleteLabelButton:hover {
+  color: #ef4444;
+}
+
+.crmMenuItem:hover .deleteLabelButton {
+  display: flex;
+}
+
 /* Chat List */
 .chatListPane {
   width: 350px;

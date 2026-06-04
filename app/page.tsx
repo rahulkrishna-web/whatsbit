@@ -29,6 +29,7 @@ import {
   getDoc,
   addDoc, 
   updateDoc, 
+  deleteDoc,
   serverTimestamp 
 } from "firebase/firestore";
 
@@ -57,6 +58,8 @@ type Contact = {
   unreadCount?: number;
   statusSelect?: string;
   label?: string;
+  funnelStage?: string;
+  isFavorite?: boolean;
 };
 
 const INITIAL_CONTACTS: Contact[] = [
@@ -108,6 +111,9 @@ export default function ChatApp() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [activeLightboxImage, setActiveLightboxImage] = useState<string | null>(null);
+  const [zoomScale, setZoomScale] = useState<number>(1);
+
+  const [funnels, setFunnels] = useState<{ id: string; name: string }[]>([]);
 
   // Sync custom labels from Firestore
   useEffect(() => {
@@ -120,7 +126,7 @@ export default function ChatApp() {
       
       if (list.length === 0) {
         // Seed default labels if empty
-        const defaults = ["Workday", "Lunch", "Settings"];
+        const defaults = ["High Priority", "Warm Leads", "Follow Up Required", "Technical Support"];
         defaults.forEach(async (name) => {
           await addDoc(collection(db, "labels"), { name });
         });
@@ -142,6 +148,72 @@ export default function ChatApp() {
     await addDoc(collection(db, "labels"), {
       name: cleanName,
     });
+  };
+
+  const handleDeleteLabel = async (labelId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm("Are you sure you want to delete this label?")) return;
+    try {
+      await deleteDoc(doc(db, "labels", labelId));
+      setActiveMenuFilter("all");
+    } catch (err) {
+      console.error("Error deleting label:", err);
+    }
+  };
+
+  // Sync custom funnels from Firestore
+  useEffect(() => {
+    const funnelsRef = collection(db, "funnels");
+    const unsubscribe = onSnapshot(funnelsRef, (snapshot) => {
+      const list: { id: string; name: string }[] = [];
+      snapshot.forEach((doc) => {
+        list.push({ id: doc.id, name: doc.data().name });
+      });
+      
+      if (list.length === 0) {
+        // Seed default funnel stages if empty
+        const defaults = ["New", "Confirmation made", "In work", "Success", "Refusal"];
+        defaults.forEach(async (name) => {
+          await addDoc(collection(db, "funnels"), { name });
+        });
+      } else {
+        const order = ["new", "confirmation made", "in work", "success", "refusal"];
+        list.sort((a, b) => {
+          const idxA = order.indexOf(a.name.toLowerCase());
+          const idxB = order.indexOf(b.name.toLowerCase());
+          if (idxA === -1 && idxB === -1) return 0;
+          if (idxA === -1) return 1;
+          if (idxB === -1) return -1;
+          return idxA - idxB;
+        });
+        setFunnels(list);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleCreateNewFunnel = async () => {
+    const name = prompt("Enter new funnel stage name:");
+    if (!name || !name.trim()) return;
+    const cleanName = name.trim();
+    if (funnels.some(f => f.name.toLowerCase() === cleanName.toLowerCase())) {
+      alert("Funnel stage already exists!");
+      return;
+    }
+    await addDoc(collection(db, "funnels"), {
+      name: cleanName,
+    });
+  };
+
+  const handleDeleteFunnel = async (funnelId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm("Are you sure you want to delete this funnel stage?")) return;
+    try {
+      await deleteDoc(doc(db, "funnels", funnelId));
+      setActiveMenuFilter("all");
+    } catch (err) {
+      console.error("Error deleting funnel stage:", err);
+    }
   };
 
   // Users for assignment
@@ -572,6 +644,14 @@ export default function ChatApp() {
     });
   };
 
+  const handleFunnelStageChange = async (newStage: string) => {
+    if (!activeChatId) return;
+    const contactRef = doc(db, "contacts", activeChatId);
+    await updateDoc(contactRef, {
+      funnelStage: newStage,
+    });
+  };
+
   const handleReassign = async (newUserId: string) => {
     const assignedUser = users.find(u => u.id === newUserId);
     const userName = assignedUser ? assignedUser.name : "Not chosen";
@@ -626,6 +706,11 @@ export default function ChatApp() {
       return `/api/chat/media-proxy?url=${encodeURIComponent(url)}`;
     }
     return url;
+  };
+
+  const openLightbox = (url: string) => {
+    setZoomScale(1);
+    setActiveLightboxImage(url);
   };
 
   const formatTimeIST = (msg: Message) => {
@@ -941,8 +1026,11 @@ export default function ChatApp() {
 
   // Dynamic counts calculation
   const allCount = contacts.length;
-  const unprocessedCount = contacts.filter(c => c.statusSelect === undefined || c.statusSelect === "unsorted").length;
+  const unprocessedCount = contacts.filter(c => !c.funnelStage || c.funnelStage === "" || c.funnelStage === "unsorted" || c.statusSelect === undefined || c.statusSelect === "unsorted").length;
   const myCount = contacts.filter(c => c.responsibleId === "anirrudh_sharma").length;
+  const favoritesCount = contacts.filter(c => c.isFavorite).length;
+  const channelsGroupsCount = contacts.filter(c => c.id.includes("group")).length || 2;
+  const lostCount = contacts.filter(c => c.funnelStage === "refusal").length;
 
   const filteredContacts = contacts.filter((c) => {
     const matchesSearch = 
@@ -953,16 +1041,31 @@ export default function ChatApp() {
     if (!matchesSearch) return false;
 
     if (activeMenuFilter === "unprocessed") {
-      return c.statusSelect === undefined || c.statusSelect === "unsorted";
+      return !c.funnelStage || c.funnelStage === "" || c.funnelStage === "unsorted" || c.statusSelect === undefined || c.statusSelect === "unsorted";
     }
     if (activeMenuFilter === "my") {
       return c.responsibleId === "anirrudh_sharma";
     }
+    if (activeMenuFilter === "favorites") {
+      return c.isFavorite === true;
+    }
+    if (activeMenuFilter === "channels_groups") {
+      return false;
+    }
+    if (activeMenuFilter === "lost") {
+      return c.funnelStage === "refusal";
+    }
     
-    // Dynamic match for custom labels
-    const isCustomFilter = customLabels.some(lbl => lbl.name.toLowerCase() === activeMenuFilter);
-    if (isCustomFilter) {
-      return c.label === activeMenuFilter;
+    // Check if filtering by custom labels
+    if (activeMenuFilter.startsWith("label:")) {
+      const labelName = activeMenuFilter.replace("label:", "");
+      return c.label === labelName;
+    }
+
+    // Check if filtering by funnel stages
+    if (activeMenuFilter.startsWith("funnel:")) {
+      const stageName = activeMenuFilter.replace("funnel:", "");
+      return c.funnelStage === stageName;
     }
     
     return true; // "all"
@@ -1037,54 +1140,200 @@ export default function ChatApp() {
       {/* 1. CRM Sidebar */}
       {isSidebarOpen && (
         <div className={styles.crmSidebar}>
-          <div className={styles.crmHeader} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div className={styles.crmAvatar}>N</div>
-              <span>New company</span>
-            </div>
+          {/* Top Logo Header */}
+          <div className={styles.crmHeader} style={{ display: 'flex', alignItems: 'center', width: '100%', borderBottom: '1px solid #f1f5f9', paddingBottom: '16px' }}>
+            <img src="/rschoyal-logo.svg" alt="RS Choyal" style={{ height: "30px", width: "auto", display: "block" }} />
           </div>
-          <ul className={styles.crmMenu}>
-            {customLabels.map((lbl) => {
-              const key = lbl.name.toLowerCase();
-              const count = contacts.filter(c => c.label === key).length;
-              return (
-                <li 
-                  key={lbl.id}
-                  onClick={() => setActiveMenuFilter(key)}
-                  className={`${styles.crmMenuItem} ${activeMenuFilter === key ? styles.crmMenuItemActive : ""}`}
-                >
-                  {lbl.name} <span className={styles.badge}>{count}</span>
-                </li>
-              );
-            })}
-            {/* Add Label Button */}
-            <li 
-              onClick={handleCreateNewLabel}
-              className={styles.crmMenuItem}
-              style={{ color: '#2563eb', fontWeight: '600', justifyContent: 'center', gap: '6px', borderTop: '1px dashed #e2e8f0', marginTop: '4px' }}
-            >
-              ➕ Add Label
-            </li>
-          </ul>
-          <ul className={styles.crmMenu} style={{ marginTop: '24px' }}>
+
+          {/* System Filters */}
+          <ul className={styles.crmMenu} style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '12px' }}>
             <li 
               onClick={() => setActiveMenuFilter("all")}
               className={`${styles.crmMenuItem} ${activeMenuFilter === "all" ? styles.crmMenuItemActive : ""}`}
             >
-              All <span className={styles.badge}>{allCount}</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                </svg>
+                All
+              </span>
+              <span className={styles.badge}>{allCount}</span>
             </li>
+            
             <li 
               onClick={() => setActiveMenuFilter("unprocessed")}
               className={`${styles.crmMenuItem} ${activeMenuFilter === "unprocessed" ? styles.crmMenuItemActive : ""}`}
             >
-              Unprocessed <span className={styles.badge}>{unprocessedCount}</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+                </svg>
+                Unprocessed
+              </span>
+              <span className={styles.badge}>{unprocessedCount}</span>
             </li>
+
             <li 
               onClick={() => setActiveMenuFilter("my")}
               className={`${styles.crmMenuItem} ${activeMenuFilter === "my" ? styles.crmMenuItemActive : ""}`}
             >
-              My <span className={styles.badge}>{myCount}</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+                My
+              </span>
+              <span className={styles.badge}>{myCount}</span>
             </li>
+
+            <li 
+              onClick={() => setActiveMenuFilter("favorites")}
+              className={`${styles.crmMenuItem} ${activeMenuFilter === "favorites" ? styles.crmMenuItemActive : ""}`}
+            >
+              <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                </svg>
+                Favorites
+              </span>
+              {favoritesCount > 0 && <span className={styles.badge}>{favoritesCount}</span>}
+            </li>
+
+            <li 
+              onClick={() => setActiveMenuFilter("channels_groups")}
+              className={`${styles.crmMenuItem} ${activeMenuFilter === "channels_groups" ? styles.crmMenuItemActive : ""}`}
+            >
+              <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="9" cy="7" r="4"></circle>
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                </svg>
+                Channels and groups
+              </span>
+              <span className={styles.badge}>{channelsGroupsCount}</span>
+            </li>
+
+            <li 
+              onClick={() => setActiveMenuFilter("lost")}
+              className={`${styles.crmMenuItem} ${activeMenuFilter === "lost" ? styles.crmMenuItemActive : ""}`}
+            >
+              <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                </svg>
+                Lost
+              </span>
+              <span className={styles.badge}>{lostCount}</span>
+            </li>
+          </ul>
+
+          {/* Custom Labels Section */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px', padding: '0 8px 8px 8px', borderBottom: '1px solid #f1f5f9' }}>
+            <span style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.05em' }}>Labels</span>
+            <button 
+              onClick={handleCreateNewLabel}
+              style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '16px', display: 'flex', alignItems: 'center', padding: '2px' }}
+              title="Add Label"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            </button>
+          </div>
+          <ul className={styles.crmMenu}>
+            {customLabels.map((lbl) => {
+              const labelKey = `label:${lbl.name.toLowerCase()}`;
+              const count = contacts.filter(c => c.label === lbl.name.toLowerCase()).length;
+              return (
+                <li 
+                  key={lbl.id}
+                  onClick={() => setActiveMenuFilter(labelKey)}
+                  className={`${styles.crmMenuItem} ${activeMenuFilter === labelKey ? styles.crmMenuItemActive : ""}`}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#a855f7' }}></span>
+                    {lbl.name}
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span className={styles.badge}>{count}</span>
+                    <button 
+                      onClick={(e) => handleDeleteLabel(lbl.id, e)}
+                      className={styles.deleteLabelButton}
+                      title="Delete Label"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+
+          {/* Funnel Section */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px', padding: '0 8px 8px 8px', borderBottom: '1px solid #f1f5f9' }}>
+            <span style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.05em' }}>Funnel</span>
+            <button 
+              onClick={handleCreateNewFunnel}
+              style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '16px', display: 'flex', alignItems: 'center', padding: '2px' }}
+              title="Add Funnel Stage"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            </button>
+          </div>
+          <ul className={styles.crmMenu}>
+            {funnels.map((fun) => {
+              const funnelKey = `funnel:${fun.name.toLowerCase()}`;
+              const count = contacts.filter(c => c.funnelStage === fun.name.toLowerCase()).length;
+              
+              const nameLower = fun.name.toLowerCase();
+              let iconColor = "#94a3b8"; 
+              if (nameLower.includes("new")) iconColor = "#3b82f6"; 
+              else if (nameLower.includes("confirmation")) iconColor = "#f59e0b"; 
+              else if (nameLower.includes("work")) iconColor = "#10b981"; 
+              else if (nameLower.includes("success")) iconColor = "#16a34a"; 
+              else if (nameLower.includes("refusal")) iconColor = "#ef4444"; 
+
+              return (
+                <li 
+                  key={fun.id}
+                  onClick={() => setActiveMenuFilter(funnelKey)}
+                  className={`${styles.crmMenuItem} ${activeMenuFilter === funnelKey ? styles.crmMenuItemActive : ""}`}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill={nameLower.includes("success") || nameLower.includes("refusal") ? "none" : iconColor} stroke={iconColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      {nameLower.includes("success") ? (
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                      ) : nameLower.includes("refusal") ? (
+                        <>
+                          <line x1="18" y1="6" x2="6" y2="18"></line>
+                          <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </>
+                      ) : (
+                        <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
+                      )}
+                    </svg>
+                    {fun.name}
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span className={styles.badge}>{count}</span>
+                    <button 
+                      onClick={(e) => handleDeleteFunnel(fun.id, e)}
+                      className={styles.deleteLabelButton}
+                      title="Delete Funnel Stage"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
@@ -1171,7 +1420,32 @@ export default function ChatApp() {
               {activeContact.avatar}
             </div>
             <div className={styles.chatHeaderInfo}>
-              <span className={styles.chatHeaderName}>{activeContact.name}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className={styles.chatHeaderName}>{activeContact.name}</span>
+                <button 
+                  onClick={async () => {
+                    const contactRef = doc(db, "contacts", activeContact.id);
+                    await updateDoc(contactRef, {
+                      isFavorite: !activeContact.isFavorite
+                    });
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: '18px',
+                    color: activeContact.isFavorite ? '#eab308' : '#cbd5e1',
+                    padding: '2px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'color 0.2s',
+                  }}
+                  title={activeContact.isFavorite ? "Remove from Favorites" : "Add to Favorites"}
+                >
+                  ★
+                </button>
+              </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
                 <span style={{ fontSize: '12px', fontWeight: '500', color: '#64748b' }}>{activeContact.id}</span>
                 <span style={{ fontSize: '10px', color: '#cbd5e1' }}>|</span>
@@ -1181,28 +1455,31 @@ export default function ChatApp() {
                   padding: '2px 8px',
                   borderRadius: '12px',
                   backgroundColor: 
-                    activeContact.statusSelect === 'completed' ? '#ecfdf5' : 
-                    activeContact.statusSelect === 'in_progress' ? '#eff6ff' : '#f1f5f9',
+                    activeContact.funnelStage === 'success' ? '#ecfdf5' : 
+                    activeContact.funnelStage === 'refusal' ? '#fef2f2' : 
+                    activeContact.funnelStage ? '#eff6ff' : '#f1f5f9',
                   color: 
-                    activeContact.statusSelect === 'completed' ? '#047857' : 
-                    activeContact.statusSelect === 'in_progress' ? '#1d4ed8' : '#475569',
+                    activeContact.funnelStage === 'success' ? '#047857' : 
+                    activeContact.funnelStage === 'refusal' ? '#b91c1c' : 
+                    activeContact.funnelStage ? '#1d4ed8' : '#475569',
                 }}>
-                  {getStatusLabel(activeContact)}
+                  {activeContact.funnelStage ? (funnels.find(f => f.name.toLowerCase() === activeContact.funnelStage)?.name || activeContact.funnelStage) : "Unsorted"}
                 </span>
               </div>
             </div>
           </div>
 
           <div className={styles.chatHeaderRight}>
-            {/* Status Dropdown */}
+            {/* Funnel Stage Dropdown */}
             <select 
               className={styles.statusSelect} 
-              value={activeContact.statusSelect || "unsorted"}
-              onChange={(e) => handleStatusChange(e.target.value)}
+              value={activeContact.funnelStage || ""}
+              onChange={(e) => handleFunnelStageChange(e.target.value)}
             >
-              <option value="unsorted">Unsorted</option>
-              <option value="in_progress">In Progress</option>
-              <option value="completed">Completed</option>
+              <option value="">Unsorted</option>
+              {funnels.map((fun) => (
+                <option key={fun.id} value={fun.name.toLowerCase()}>{fun.name}</option>
+              ))}
             </select>
 
             {/* Label Dropdown */}
@@ -1339,7 +1616,7 @@ export default function ChatApp() {
                               src={getMediaUrl(msg.mediaUrl)} 
                               alt="Attachment" 
                               style={{ maxWidth: "100%", maxHeight: "240px", borderRadius: "8px", display: "block", objectFit: "cover", cursor: "pointer" }} 
-                              onClick={() => setActiveLightboxImage(getMediaUrl(msg.mediaUrl) || null)}
+                              onClick={() => openLightbox(getMediaUrl(msg.mediaUrl))}
                             />
                           ) : msg.mediaType === "video" || (!msg.mediaType && msg.mediaUrl.match(/\.(mp4|webm|ogg)/i)) ? (
                             <video 
@@ -1791,14 +2068,63 @@ export default function ChatApp() {
             left: 0,
             width: '100vw',
             height: '100vh',
-            backgroundColor: 'rgba(11, 20, 26, 0.9)',
+            backgroundColor: 'rgba(11, 20, 26, 0.95)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             zIndex: 10000,
+            overflow: 'auto',
+            padding: '20px',
           }}
           onClick={() => setActiveLightboxImage(null)}
         >
+          {/* Zoom controls */}
+          <div 
+            style={{
+              position: 'absolute',
+              top: '20px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              backgroundColor: 'rgba(255, 255, 255, 0.12)',
+              backdropFilter: 'blur(8px)',
+              padding: '6px 16px',
+              borderRadius: '20px',
+              zIndex: 10001,
+              boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+              border: '1px solid rgba(255,255,255,0.08)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button 
+              style={{ background: 'none', border: 'none', color: '#f1f5f9', cursor: 'pointer', fontSize: '20px', padding: '4px 8px', fontWeight: 'bold', display: 'flex', alignItems: 'center' }}
+              onClick={() => setZoomScale(prev => Math.max(0.5, prev - 0.25))}
+              title="Zoom Out"
+            >
+              −
+            </button>
+            <span style={{ color: '#f1f5f9', fontSize: '14px', fontWeight: '500', minWidth: '45px', textAlign: 'center', fontFamily: 'sans-serif' }}>
+              {Math.round(zoomScale * 100)}%
+            </span>
+            <button 
+              style={{ background: 'none', border: 'none', color: '#f1f5f9', cursor: 'pointer', fontSize: '20px', padding: '4px 8px', fontWeight: 'bold', display: 'flex', alignItems: 'center' }}
+              onClick={() => setZoomScale(prev => Math.min(4, prev + 0.25))}
+              title="Zoom In"
+            >
+              +
+            </button>
+            <div style={{ width: '1px', height: '16px', backgroundColor: 'rgba(255,255,255,0.2)', margin: '0 4px' }}></div>
+            <button 
+              style={{ background: 'none', border: 'none', color: '#f1f5f9', cursor: 'pointer', fontSize: '15px', padding: '4px 8px', display: 'flex', alignItems: 'center' }}
+              onClick={() => setZoomScale(1)}
+              title="Reset Zoom"
+            >
+              ↺
+            </button>
+          </div>
+
           {/* Close button */}
           <button 
             style={{
@@ -1816,6 +2142,7 @@ export default function ChatApp() {
               justifyContent: 'center',
               backgroundColor: 'rgba(255,255,255,0.08)',
               transition: 'background-color 0.2s',
+              zIndex: 10002,
             }}
             onClick={() => setActiveLightboxImage(null)}
           >
@@ -1825,19 +2152,38 @@ export default function ChatApp() {
             </svg>
           </button>
           
-          <img 
-            src={activeLightboxImage} 
-            alt="Enlarged Attachment" 
-            style={{
-              maxWidth: '90%',
-              maxHeight: '90%',
-              objectFit: 'contain',
-              borderRadius: '8px',
-              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
-              border: '1px solid rgba(255,255,255,0.1)',
+          <div 
+            style={{ 
+              display: 'inline-block',
+              transition: 'transform 0.2s ease-in-out',
+              transform: `scale(${zoomScale})`,
+              transformOrigin: 'center',
+              cursor: zoomScale > 1 ? 'grab' : 'zoom-in',
             }}
-            onClick={(e) => e.stopPropagation()}
-          />
+            onClick={(e) => {
+              e.stopPropagation();
+              if (zoomScale === 1) {
+                setZoomScale(2);
+              } else {
+                setZoomScale(1);
+              }
+            }}
+          >
+            <img 
+              src={activeLightboxImage} 
+              alt="Enlarged Attachment" 
+              style={{
+                maxWidth: '90vw',
+                maxHeight: '85vh',
+                objectFit: 'contain',
+                borderRadius: '8px',
+                boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                display: 'block',
+              }}
+              draggable={false}
+            />
+          </div>
         </div>
       )}
     </div>
