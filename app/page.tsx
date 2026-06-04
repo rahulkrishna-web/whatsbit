@@ -105,6 +105,7 @@ export default function ChatApp() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   // Sync custom labels from Firestore
@@ -197,6 +198,7 @@ export default function ChatApp() {
                 try {
                   const info = w.BX24.placement.info();
                   if (info && info.options && info.options.ID) {
+                    setIsSidebarOpen(false);
                     const entityId = info.options.ID;
                     const placementName = info.placement;
                     let apiMethod = "crm.lead.get";
@@ -949,104 +951,131 @@ export default function ChatApp() {
 
   return (
     <div className={styles.appContainer}>
-      {/* 1. CRM Sidebar */}
-      <div className={styles.crmSidebar}>
-        <div className={styles.crmHeader} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div className={styles.crmAvatar}>N</div>
-            <span>New company</span>
+      {/* VSCode-style slim Activity Bar */}
+      <div className={styles.activityBar}>
+        <div className={styles.activityBarTop}>
+          <div className={styles.activityLogo} title="WhatsappLine">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="28" height="28" fill="#00a884">
+              <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.513 2.262 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.455L0 24zm6.59-4.846c1.665.988 3.3.15 5.367.15 5.068 0 9.197-4.127 9.2-9.197.002-2.457-.962-4.767-2.715-6.523C16.69 1.83 14.383.867 11.92.867c-5.071 0-9.2 4.127-9.202 9.2-.001 1.942.508 3.834 1.474 5.513l-.993 3.63 3.448-.926z"/>
+            </svg>
           </div>
           <button 
-            onClick={registerPlacements} 
-            title="Sync CRM Placements" 
-            style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: 0.7, padding: '4px', display: 'flex', alignItems: 'center' }}
+            className={`${styles.activityButton} ${isSidebarOpen ? styles.activityButtonActive : ""}`} 
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            title="Toggle Sidebar"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+          </button>
+        </div>
+
+        <div className={styles.activityBarBottom}>
+          <button 
+            onClick={registerPlacements} 
+            className={styles.activityButton}
+            title="Sync CRM Placements"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
             </svg>
           </button>
         </div>
-        <ul className={styles.crmMenu}>
-          {customLabels.map((lbl) => {
-            const key = lbl.name.toLowerCase();
-            const count = contacts.filter(c => c.label === key).length;
-            return (
-              <li 
-                key={lbl.id}
-                onClick={() => setActiveMenuFilter(key)}
-                className={`${styles.crmMenuItem} ${activeMenuFilter === key ? styles.crmMenuItemActive : ""}`}
-              >
-                {lbl.name} <span className={styles.badge}>{count}</span>
-              </li>
-            );
-          })}
-          {/* Add Label Button */}
-          <li 
-            onClick={handleCreateNewLabel}
-            className={styles.crmMenuItem}
-            style={{ color: '#2563eb', fontWeight: '600', justifyContent: 'center', gap: '6px', borderTop: '1px dashed #e2e8f0', marginTop: '4px' }}
-          >
-            ➕ Add Label
-          </li>
-        </ul>
-        <ul className={styles.crmMenu} style={{ marginTop: '24px' }}>
-          <li 
-            onClick={() => setActiveMenuFilter("all")}
-            className={`${styles.crmMenuItem} ${activeMenuFilter === "all" ? styles.crmMenuItemActive : ""}`}
-          >
-            All <span className={styles.badge}>{allCount}</span>
-          </li>
-          <li 
-            onClick={() => setActiveMenuFilter("unprocessed")}
-            className={`${styles.crmMenuItem} ${activeMenuFilter === "unprocessed" ? styles.crmMenuItemActive : ""}`}
-          >
-            Unprocessed <span className={styles.badge}>{unprocessedCount}</span>
-          </li>
-          <li 
-            onClick={() => setActiveMenuFilter("my")}
-            className={`${styles.crmMenuItem} ${activeMenuFilter === "my" ? styles.crmMenuItemActive : ""}`}
-          >
-            My <span className={styles.badge}>{myCount}</span>
-          </li>
-        </ul>
       </div>
 
+      {/* 1. CRM Sidebar */}
+      {isSidebarOpen && (
+        <div className={styles.crmSidebar}>
+          <div className={styles.crmHeader} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div className={styles.crmAvatar}>N</div>
+              <span>New company</span>
+            </div>
+          </div>
+          <ul className={styles.crmMenu}>
+            {customLabels.map((lbl) => {
+              const key = lbl.name.toLowerCase();
+              const count = contacts.filter(c => c.label === key).length;
+              return (
+                <li 
+                  key={lbl.id}
+                  onClick={() => setActiveMenuFilter(key)}
+                  className={`${styles.crmMenuItem} ${activeMenuFilter === key ? styles.crmMenuItemActive : ""}`}
+                >
+                  {lbl.name} <span className={styles.badge}>{count}</span>
+                </li>
+              );
+            })}
+            {/* Add Label Button */}
+            <li 
+              onClick={handleCreateNewLabel}
+              className={styles.crmMenuItem}
+              style={{ color: '#2563eb', fontWeight: '600', justifyContent: 'center', gap: '6px', borderTop: '1px dashed #e2e8f0', marginTop: '4px' }}
+            >
+              ➕ Add Label
+            </li>
+          </ul>
+          <ul className={styles.crmMenu} style={{ marginTop: '24px' }}>
+            <li 
+              onClick={() => setActiveMenuFilter("all")}
+              className={`${styles.crmMenuItem} ${activeMenuFilter === "all" ? styles.crmMenuItemActive : ""}`}
+            >
+              All <span className={styles.badge}>{allCount}</span>
+            </li>
+            <li 
+              onClick={() => setActiveMenuFilter("unprocessed")}
+              className={`${styles.crmMenuItem} ${activeMenuFilter === "unprocessed" ? styles.crmMenuItemActive : ""}`}
+            >
+              Unprocessed <span className={styles.badge}>{unprocessedCount}</span>
+            </li>
+            <li 
+              onClick={() => setActiveMenuFilter("my")}
+              className={`${styles.crmMenuItem} ${activeMenuFilter === "my" ? styles.crmMenuItemActive : ""}`}
+            >
+              My <span className={styles.badge}>{myCount}</span>
+            </li>
+          </ul>
+        </div>
+      )}
+
       {/* 2. Chat List Pane */}
-      <div className={styles.chatListPane}>
-        <div className={styles.chatSearch}>
-          <input
-            type="text"
-            placeholder="Search from URL or contacts..."
-            className={styles.chatSearchInput}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-        <div className={styles.contactList}>
-          {filteredContacts.map((contact) => {
-            const isActive = contact.id === activeChatId;
-            return (
-              <div
-                key={contact.id}
-                className={`${styles.contactItem} ${isActive ? styles.contactItemActive : ""}`}
-                onClick={() => setActiveChatId(contact.id)}
-              >
-                <div className={styles.contactAvatar}>{contact.avatar}</div>
-                <div className={styles.contactInfo}>
-                  <div className={styles.contactHeader}>
-                    <span className={styles.contactName}>{contact.name}</span>
-                    <span className={styles.contactTime}>{formatContactTimeIST(contact)}</span>
+      {isSidebarOpen && (
+        <div className={styles.chatListPane}>
+          <div className={styles.chatSearch}>
+            <input
+              type="text"
+              placeholder="Search from URL or contacts..."
+              className={styles.chatSearchInput}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <div className={styles.contactList}>
+            {filteredContacts.map((contact) => {
+              const isActive = contact.id === activeChatId;
+              return (
+                <div
+                  key={contact.id}
+                  className={`${styles.contactItem} ${isActive ? styles.contactItemActive : ""}`}
+                  onClick={() => setActiveChatId(contact.id)}
+                >
+                  <div className={styles.contactAvatar}>{contact.avatar}</div>
+                  <div className={styles.contactInfo}>
+                    <div className={styles.contactHeader}>
+                      <span className={styles.contactName}>{contact.name}</span>
+                      <span className={styles.contactTime}>{formatContactTimeIST(contact)}</span>
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '500', marginBottom: '2px' }}>{contact.id}</div>
+                    <span className={styles.contactPreview}>
+                      {contact.preview && contact.preview.startsWith("Phone:") ? "No messages yet" : contact.preview}
+                    </span>
                   </div>
-                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '500', marginBottom: '2px' }}>{contact.id}</div>
-                  <span className={styles.contactPreview}>
-                    {contact.preview && contact.preview.startsWith("Phone:") ? "No messages yet" : contact.preview}
-                  </span>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* 3. Active Chat Pane */}
       <div className={styles.activeChatPane}>

@@ -411,3 +411,70 @@
   }
 }
 
+/* VSCode-style slim Activity Bar */
+.activityBar {
+  width: 60px;
+  background-color: #111b21;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 0;
+  flex-shrink: 0;
+  z-index: 20;
+}
+
+.activityBarTop,
+.activityBarBottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+}
+
+.activityButton {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #8696a0;
+  background: none;
+  border: none;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.activityButton:hover {
+  color: #e9edef;
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.activityButtonActive {
+  color: #00a884;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.activityButtonActive::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  background-color: #00a884;
+  border-radius: 0 4px 4px 0;
+}
+
+.activityLogo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 8px;
+}
+
