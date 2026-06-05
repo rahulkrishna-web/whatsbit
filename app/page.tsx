@@ -66,6 +66,8 @@ type Message = {
   errorCode?: string;
   errorMessage?: string;
   timestamp?: any;
+  deliveredAt?: string;
+  readAt?: string;
 };
 
 type Contact = {
@@ -548,6 +550,8 @@ export default function ChatApp() {
           errorMessage: data.errorMessage || "",
           timestamp: data.timestamp,
           senderName: data.senderName || "",
+          deliveredAt: data.deliveredAt || "",
+          readAt: data.readAt || "",
         });
       });
 
@@ -1988,16 +1992,19 @@ export default function ChatApp() {
                         </div>
                       )}
                       {msg.text && <MessageTextContent text={msg.text} />}
-                      {msg.isSent && msg.senderName && (
+                      {msg.isSent && (
                         <div style={{ 
                           fontSize: '10px', 
                           opacity: 0.7, 
                           textAlign: 'right', 
                           marginTop: '4px',
                           fontStyle: 'italic',
-                          color: '#475569'
+                          color: '#475569',
+                          lineHeight: '1.3'
                         }}>
-                          Sent by {msg.senderName}
+                          {msg.senderName && <div>Sent by {msg.senderName}</div>}
+                          {msg.deliveredAt && <div>Delivered: {msg.deliveredAt}</div>}
+                          {msg.readAt && <div>Read: {msg.readAt}</div>}
                         </div>
                       )}
                       <div className={styles.messageFooter}>

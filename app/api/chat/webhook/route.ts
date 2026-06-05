@@ -61,9 +61,26 @@ export async function POST(request: Request) {
             statusVal = "failed";
           }
           
+          const timeString = new Date().toLocaleTimeString("en-IN", {
+            timeZone: "Asia/Kolkata",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+          });
+
           const updatePayload: any = {
             status: statusVal
           };
+          if (statusVal === "delivered") {
+            updatePayload.deliveredAt = timeString;
+          } else if (statusVal === "read") {
+            updatePayload.readAt = timeString;
+            const existingData = querySnapshot.docs[0].data();
+            if (!existingData.deliveredAt) {
+              updatePayload.deliveredAt = timeString;
+            }
+          }
+
           if (data.ErrorCode) {
             updatePayload.errorCode = String(data.ErrorCode);
           }
