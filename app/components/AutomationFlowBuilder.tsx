@@ -27,6 +27,7 @@ interface FlowNode {
       buttonLabel: string;
       nodeId: string;
     }[];
+    webhookToken?: string;
   };
   nextNodeId?: string;
 }
@@ -77,10 +78,10 @@ const LEAD_QUALIFICATION_NODES: FlowNode[] = [
     subType: "send_whatsapp",
     config: {
       text: "Hi {{Client Name}},\n\nThank you for your interest in flour milling solutions! 👋\n\nRS Choyal Group is a turnkey milling solutions provider with 60+ years of experience and 275+ successful projects across the globe.\n\nWhat brings you here?",
-      buttons: ["Looking to setup a new plant", "Need help with expansion", "Spares & Stones"],
+      buttons: ["Setup New Plant", "Plant Expansion", "Spares & Stones"],
       branches: [
-        { buttonLabel: "Looking to setup a new plant", nodeId: "node-3a" },
-        { buttonLabel: "Need help with expansion", nodeId: "node-3b" },
+        { buttonLabel: "Setup New Plant", nodeId: "node-3a" },
+        { buttonLabel: "Plant Expansion", nodeId: "node-3b" },
         { buttonLabel: "Spares & Stones", nodeId: "node-3c" },
       ],
     },
@@ -325,7 +326,7 @@ const createMockRunsForFlow = (flowId: string): FlowRun[] => {
             nodeTitle: "Turnkey Plant Inquiry Response",
             timestamp: getPastISO(118),
             status: "success",
-            description: "User replied: 'Looking to setup a new plant'. Questions sent.",
+            description: "User replied: 'Setup New Plant'. Questions sent.",
           },
           {
             nodeId: "node-4a",
@@ -363,7 +364,7 @@ const createMockRunsForFlow = (flowId: string): FlowRun[] => {
             nodeTitle: "Plant Expansion Inquiry Response",
             timestamp: getPastISO(1435),
             status: "success",
-            description: "User clicked option: 'Need help with expansion'. Inquiry questions sent.",
+            description: "User clicked option: 'Plant Expansion'. Inquiry questions sent.",
           },
           {
             nodeId: "node-4b",
@@ -1695,6 +1696,68 @@ export default function AutomationFlowBuilder({ currentUser }: { currentUser: { 
                 <option value="delay:wait_time">Delay: Wait Timer</option>
               </select>
             </div>
+
+            {selectedNode.type === "trigger" && (
+              <div className={styles.inputGroup}>
+                <label>Webhook URL (Copy to CRM)</label>
+                <div style={{ display: "flex", gap: "8px", marginTop: "4px" }}>
+                  <input
+                    type="text"
+                    readOnly
+                    value={typeof window !== "undefined" ? `${window.location.origin}/api/chat/webhook/bitrix?flowId=${activeFlow.id}` : ""}
+                    style={{
+                      flex: 1,
+                      background: "#1e293b",
+                      border: "1px solid #334155",
+                      color: "#94a3b8",
+                      padding: "8px",
+                      borderRadius: "6px",
+                      fontSize: "12px",
+                      outline: "none"
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const url = typeof window !== "undefined" ? `${window.location.origin}/api/chat/webhook/bitrix?flowId=${activeFlow.id}` : "";
+                      navigator.clipboard.writeText(url);
+                      alert("Webhook URL copied to clipboard!");
+                    }}
+                    style={{
+                      background: "#10b981",
+                      color: "white",
+                      border: "none",
+                      padding: "0 12px",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                      fontSize: "12px",
+                      fontWeight: 600
+                    }}
+                  >
+                    Copy
+                  </button>
+                </div>
+                <p style={{ fontSize: "11px", color: "#64748b", marginTop: "6px", lineHeight: "1.4" }}>
+                  Register an Outbound Webhook in Bitrix24 CRM Developer Resources targeting this URL.
+                </p>
+
+                <div style={{ marginTop: "16px" }}>
+                  <label>Application Token / Authentication Key</label>
+                  <input
+                    type="text"
+                    value={selectedNode.config.webhookToken || ""}
+                    onChange={(e) =>
+                      handleUpdateNode({
+                        ...selectedNode,
+                        config: { ...selectedNode.config, webhookToken: e.target.value },
+                      })
+                    }
+                    placeholder="e.g. Bitrix webhook secret code"
+                    style={{ marginTop: "4px" }}
+                  />
+                </div>
+              </div>
+            )}
 
             {selectedNode.type === "delay" && (
               <div className={styles.inputGroup}>
