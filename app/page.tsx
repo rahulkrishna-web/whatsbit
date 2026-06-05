@@ -131,10 +131,14 @@ export default function ChatApp() {
   const [companyName, setCompanyName] = useState("RS Choyal");
   const [logoUrl, setLogoUrl] = useState("/rschoyal-logo.svg");
   const [timeZone, setTimeZone] = useState("Asia/Kolkata");
+  const [hideCompanyName, setHideCompanyName] = useState(false);
+  const [logoHeight, setLogoHeight] = useState(30);
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [editName, setEditName] = useState("RS Choyal");
   const [editLogo, setEditLogo] = useState("/rschoyal-logo.svg");
   const [editTZ, setEditTZ] = useState("Asia/Kolkata");
+  const [editHideCompanyName, setEditHideCompanyName] = useState(false);
+  const [editLogoHeight, setEditLogoHeight] = useState(30);
 
   useEffect(() => {
     setEditName(companyName);
@@ -147,6 +151,14 @@ export default function ChatApp() {
   useEffect(() => {
     setEditTZ(timeZone);
   }, [timeZone]);
+
+  useEffect(() => {
+    setEditHideCompanyName(hideCompanyName);
+  }, [hideCompanyName]);
+
+  useEffect(() => {
+    setEditLogoHeight(logoHeight);
+  }, [logoHeight]);
   const [customLabels, setCustomLabels] = useState<{ id: string; name: string; parentId?: string | null; order?: number }[]>([]);
   const [showLabelDropdown, setShowLabelDropdown] = useState(false);
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
@@ -550,19 +562,23 @@ export default function ChatApp() {
         setCompanyName(data.companyName || "RS Choyal");
         setLogoUrl(data.logoUrl || "/rschoyal-logo.svg");
         setTimeZone(data.timeZone || "Asia/Kolkata");
+        setHideCompanyName(!!data.hideCompanyName);
+        setLogoHeight(typeof data.logoHeight === "number" ? data.logoHeight : 30);
       } else {
         // Seed default profile settings
         setDoc(profileDocRef, {
           companyName: "RS Choyal",
           logoUrl: "/rschoyal-logo.svg",
           timeZone: "Asia/Kolkata",
+          hideCompanyName: false,
+          logoHeight: 30,
         });
       }
     });
     return () => unsub();
   }, []);
 
-  const handleSaveSettings = async (name: string, logo: string, tz: string) => {
+  const handleSaveSettings = async (name: string, logo: string, tz: string, hideName: boolean, logoHeightVal: number) => {
     setSettingsLoading(true);
     try {
       const profileDocRef = doc(db, "settings", "company_profile");
@@ -570,6 +586,8 @@ export default function ChatApp() {
         companyName: name,
         logoUrl: logo,
         timeZone: tz,
+        hideCompanyName: hideName,
+        logoHeight: logoHeightVal,
       });
       alert("Settings saved successfully!");
     } catch (e: any) {
@@ -1565,9 +1583,55 @@ export default function ChatApp() {
               </p>
             </div>
 
+            {/* Hide Company Name Option */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <input
+                type="checkbox"
+                id="hideCompanyName"
+                checked={editHideCompanyName}
+                onChange={(e) => setEditHideCompanyName(e.target.checked)}
+                style={{
+                  width: '18px',
+                  height: '18px',
+                  accentColor: '#10b981',
+                  cursor: 'pointer'
+                }}
+              />
+              <label htmlFor="hideCompanyName" style={{ fontSize: '13px', fontWeight: 600, color: '#cbd5e1', cursor: 'pointer' }}>
+                Hide company name text in sidebar header
+              </label>
+            </div>
+
+            {/* Logo Height Option */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label style={{ fontSize: '13px', fontWeight: 600, color: '#cbd5e1' }}>Logo Height (px)</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <input
+                  type="number"
+                  min="16"
+                  max="120"
+                  value={editLogoHeight}
+                  onChange={(e) => setEditLogoHeight(parseInt(e.target.value) || 30)}
+                  style={{
+                    width: '100px',
+                    background: '#1e293b',
+                    border: '1px solid #334155',
+                    borderRadius: '6px',
+                    padding: '10px 12px',
+                    color: '#f8fafc',
+                    fontSize: '14px',
+                    outline: 'none',
+                  }}
+                />
+                <span style={{ fontSize: '12px', color: '#64748b' }}>
+                  Adjust logo vertical height. Default is 30px.
+                </span>
+              </div>
+            </div>
+
             {/* Save Button */}
             <button
-              onClick={() => handleSaveSettings(editName, editLogo, editTZ)}
+              onClick={() => handleSaveSettings(editName, editLogo, editTZ, editHideCompanyName, editLogoHeight)}
               disabled={settingsLoading}
               style={{
                 width: '100%',
@@ -1686,13 +1750,15 @@ export default function ChatApp() {
               <img 
                 src={logoUrl} 
                 alt={companyName} 
-                style={{ height: "30px", width: "auto", display: "block", maxHeight: "30px", objectFit: "contain" }} 
+                style={{ height: `${logoHeight}px`, width: "auto", display: "block", maxHeight: `${logoHeight}px`, objectFit: "contain" }} 
                 onError={(e) => {
                   (e.target as HTMLElement).style.display = 'none';
                 }}
               />
             )}
-            <span style={{ fontSize: "14px", fontWeight: "bold", color: "#1e293b" }}>{companyName}</span>
+            {!hideCompanyName && (
+              <span style={{ fontSize: "14px", fontWeight: "bold", color: "#1e293b" }}>{companyName}</span>
+            )}
           </div>
 
           {/* System Filters */}
