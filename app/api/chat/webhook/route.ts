@@ -9,7 +9,8 @@ import {
   where, 
   getDocs, 
   updateDoc, 
-  serverTimestamp 
+  serverTimestamp,
+  increment
 } from "firebase/firestore";
 import { join } from "path";
 import { mkdir, writeFile } from "fs/promises";
@@ -168,6 +169,7 @@ export async function POST(request: Request) {
         time: timeString,
         lastUpdated: serverTimestamp(),
         statusText: "WhatsApp • Online",
+        unreadCount: increment(1),
       }, { merge: true });
     }
 

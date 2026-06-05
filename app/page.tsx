@@ -510,6 +510,18 @@ export default function ChatApp() {
     localStorage.setItem("whatsbit_active_chat", activeChatId);
   }, [activeChatId]);
 
+  // Reset unread count for the active chat
+  useEffect(() => {
+    if (!activeChatId) return;
+    const activeContact = contacts.find(c => c.id === activeChatId);
+    if (activeContact && (activeContact.unreadCount || 0) > 0) {
+      const contactRef = doc(db, "contacts", activeChatId);
+      updateDoc(contactRef, {
+        unreadCount: 0
+      }).catch(err => console.error("Error resetting unread count:", err));
+    }
+  }, [activeChatId, contacts]);
+
   // Fetch live contacts and users from Bitrix24 and sync to Firestore
   useEffect(() => {
     const fetchBitrixContacts = () => {
@@ -1475,9 +1487,16 @@ export default function ChatApp() {
                       <span className={styles.contactTime}>{formatContactTimeIST(contact)}</span>
                     </div>
                     <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '500', marginBottom: '2px' }}>{contact.id}</div>
-                    <span className={styles.contactPreview}>
-                      {contact.preview && contact.preview.startsWith("Phone:") ? "No messages yet" : contact.preview}
-                    </span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', gap: '8px' }}>
+                      <span className={styles.contactPreview} style={{ flex: 1 }}>
+                        {contact.preview && contact.preview.startsWith("Phone:") ? "No messages yet" : contact.preview}
+                      </span>
+                      {contact.unreadCount && contact.unreadCount > 0 ? (
+                        <span className={styles.unreadBadge}>
+                          {contact.unreadCount}
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
               );
