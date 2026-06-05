@@ -82,6 +82,7 @@ type Contact = {
   labels?: string[];
   funnelStage?: string;
   isFavorite?: boolean;
+  lastUpdated?: any;
 };
 
 const INITIAL_CONTACTS: Contact[] = [
