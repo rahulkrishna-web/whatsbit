@@ -513,14 +513,11 @@ export default function ChatApp() {
   // Reset unread count for the active chat
   useEffect(() => {
     if (!activeChatId) return;
-    const activeContact = contacts.find(c => c.id === activeChatId);
-    if (activeContact && (activeContact.unreadCount || 0) > 0) {
-      const contactRef = doc(db, "contacts", activeChatId);
-      updateDoc(contactRef, {
-        unreadCount: 0
-      }).catch(err => console.error("Error resetting unread count:", err));
-    }
-  }, [activeChatId, contacts]);
+    const contactRef = doc(db, "contacts", activeChatId);
+    updateDoc(contactRef, {
+      unreadCount: 0
+    }).catch(err => console.error("Error resetting unread count:", err));
+  }, [activeChatId]);
 
   // Fetch live contacts and users from Bitrix24 and sync to Firestore
   useEffect(() => {
@@ -1478,25 +1475,30 @@ export default function ChatApp() {
                 <div
                   key={contact.id}
                   className={`${styles.contactItem} ${isActive ? styles.contactItemActive : ""}`}
-                  onClick={() => setActiveChatId(contact.id)}
+                  onClick={() => {
+                    setActiveChatId(contact.id);
+                    if ((contact.unreadCount || 0) > 0) {
+                      const contactRef = doc(db, "contacts", contact.id);
+                      updateDoc(contactRef, { unreadCount: 0 })
+                        .catch(err => console.error("Error resetting unread count:", err));
+                    }
+                  }}
                 >
                   <div className={styles.contactAvatar}>{contact.avatar}</div>
                   <div className={styles.contactInfo}>
-                    <div className={styles.contactHeader}>
-                      <span className={styles.contactName}>{contact.name}</span>
-                      <span className={styles.contactTime}>{formatContactTimeIST(contact)}</span>
-                    </div>
-                    <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '500', marginBottom: '2px' }}>{contact.id}</div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', gap: '8px' }}>
-                      <span className={styles.contactPreview} style={{ flex: 1 }}>
-                        {contact.preview && contact.preview.startsWith("Phone:") ? "No messages yet" : contact.preview}
+                    <span className={styles.contactName}>{contact.name}</span>
+                    <div style={{ fontSize: '11px', color: '#64748b', fontWeight: '500', margin: '2px 0' }}>{contact.id}</div>
+                    <span className={styles.contactPreview}>
+                      {contact.preview && contact.preview.startsWith("Phone:") ? "No messages yet" : contact.preview}
+                    </span>
+                  </div>
+                  <div className={styles.contactMeta}>
+                    <span className={styles.contactTime}>{formatContactTimeIST(contact)}</span>
+                    {(contact.unreadCount || 0) > 0 ? (
+                      <span className={styles.unreadBadge}>
+                        {contact.unreadCount}
                       </span>
-                      {contact.unreadCount && contact.unreadCount > 0 ? (
-                        <span className={styles.unreadBadge}>
-                          {contact.unreadCount}
-                        </span>
-                      ) : null}
-                    </div>
+                    ) : null}
                   </div>
                 </div>
               );
@@ -1526,9 +1528,7 @@ export default function ChatApp() {
                       +
                     </div>
                     <div className={styles.contactInfo}>
-                      <div className={styles.contactHeader}>
-                        <span className={styles.contactName} style={{ color: '#15803d', fontWeight: '600' }}>Start chat with:</span>
-                      </div>
+                      <span className={styles.contactName} style={{ color: '#15803d', fontWeight: '600' }}>Start chat with:</span>
                       <div style={{ fontSize: '12px', color: '#166534', marginTop: '2px', fontWeight: '500' }}>{cleanedQuery}</div>
                     </div>
                   </div>
@@ -2329,6 +2329,13 @@ export default function ChatApp() {
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && !uploading && handleSend()}
+                onFocus={() => {
+                  if (activeChatId) {
+                    const contactRef = doc(db, "contacts", activeChatId);
+                    updateDoc(contactRef, { unreadCount: 0 })
+                      .catch(err => console.error("Error resetting unread count:", err));
+                  }
+                }}
                 disabled={uploading}
                 className={styles.chatInputField}
                 style={uploading ? { opacity: 0.6, cursor: 'not-allowed' } : {}}

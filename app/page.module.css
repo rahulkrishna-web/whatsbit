@@ -173,6 +173,15 @@
   font-size: 12px;
   color: #64748b;
 }
+.contactMeta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: flex-start;
+  gap: 6px;
+  flex-shrink: 0;
+  text-align: right;
+}
 .contactPreview {
   font-size: 13px;
   color: #64748b;
