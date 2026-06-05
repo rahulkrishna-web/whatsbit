@@ -25,8 +25,22 @@ export async function POST(request: Request) {
     const messageSid = (data.MessageSid || data.SmsSid) as string;
     const messageStatus = data.MessageStatus as string; // sent, delivered, read, failed
 
-    // Helper to strip "whatsapp:" prefix
-    const cleanPhone = (phoneStr: string) => phoneStr ? phoneStr.replace("whatsapp:", "").trim() : "";
+    // Robust helper to normalize phone numbers consistently
+    const cleanPhone = (phone: string): string => {
+      if (!phone) return "";
+      let raw = phone.replace(/^whatsapp:/, "");
+      let cleaned = raw.replace(/[^\d+]/g, "");
+      if (/^\d{10}$/.test(cleaned)) {
+        cleaned = "+91" + cleaned;
+      }
+      if (/^91\d{10}$/.test(cleaned)) {
+        cleaned = "+" + cleaned;
+      }
+      if (/^[1-9]\d{10,14}$/.test(cleaned) && !cleaned.startsWith("+")) {
+        cleaned = "+" + cleaned;
+      }
+      return cleaned;
+    };
 
     // 1. Handle Message Status Callback
     if (messageStatus && messageSid) {

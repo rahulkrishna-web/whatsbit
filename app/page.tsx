@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import styles from "./page.module.css";
 
 function cleanPhone(phone: string): string {
@@ -135,6 +135,66 @@ export default function ChatApp() {
   const [stagedFileName, setStagedFileName] = useState<string | null>(null);
   const [activeDocumentUrl, setActiveDocumentUrl] = useState<string | null>(null);
   const [activeDocumentName, setActiveDocumentName] = useState<string | null>(null);
+
+  // Clean, deduplicate and sort contacts list in memory in real-time
+  const sortedContacts = useMemo(() => {
+    const map = new Map<string, Contact>();
+    
+    contacts.forEach((c) => {
+      const cleanId = cleanPhone(c.id);
+      if (!cleanId) return;
+      
+      const existing = map.get(cleanId);
+      if (!existing) {
+        map.set(cleanId, { ...c, id: cleanId });
+      } else {
+        // Resolve timestamps safely to decide which is more recent
+        const getTimestamp = (contact: Contact) => {
+          if (!contact.lastUpdated) return 0;
+          if (typeof (contact.lastUpdated as any).toDate === 'function') {
+            return (contact.lastUpdated as any).toDate().getTime();
+          }
+          if ((contact.lastUpdated as any).seconds) {
+            return (contact.lastUpdated as any).seconds * 1000;
+          }
+          const parsed = Date.parse(contact.lastUpdated as any);
+          return isNaN(parsed) ? 0 : parsed;
+        };
+        
+        const currentTs = getTimestamp(c);
+        const existingTs = getTimestamp(existing);
+        
+        if (currentTs > existingTs) {
+          // If the new one has a more recent update, merge and keep the clean ID
+          map.set(cleanId, {
+            ...existing,
+            ...c,
+            id: cleanId
+          });
+        } else {
+          // Keep existing, but make sure name is updated if the older one didn't have it
+          if (!existing.name || existing.name === existing.id) {
+            existing.name = c.name;
+          }
+        }
+      }
+    });
+    
+    return Array.from(map.values()).sort((a, b) => {
+      const getTimestamp = (contact: Contact) => {
+        if (!contact.lastUpdated) return 0;
+        if (typeof (contact.lastUpdated as any).toDate === 'function') {
+          return (contact.lastUpdated as any).toDate().getTime();
+        }
+        if ((contact.lastUpdated as any).seconds) {
+          return (contact.lastUpdated as any).seconds * 1000;
+        }
+        const parsed = Date.parse(contact.lastUpdated as any);
+        return isNaN(parsed) ? 0 : parsed;
+      };
+      return getTimestamp(b) - getTimestamp(a);
+    });
+  }, [contacts]);
 
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
@@ -440,8 +500,8 @@ export default function ChatApp() {
 
   // 1. Real-time Firestore listener for contacts list
   useEffect(() => {
-    const q = query(collection(db, "contacts"), orderBy("lastUpdated", "desc"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const contactsRef = collection(db, "contacts");
+    const unsubscribe = onSnapshot(contactsRef, (snapshot) => {
       const fetched: Contact[] = [];
       snapshot.forEach((doc) => {
         fetched.push({ id: doc.id, ...doc.data() } as Contact);
@@ -458,6 +518,8 @@ export default function ChatApp() {
           });
         });
       }
+    }, (error) => {
+      console.error("Contacts onSnapshot error:", error);
     });
 
     return () => unsubscribe();
@@ -513,11 +575,14 @@ export default function ChatApp() {
   // Reset unread count for the active chat
   useEffect(() => {
     if (!activeChatId) return;
-    const contactRef = doc(db, "contacts", activeChatId);
-    updateDoc(contactRef, {
-      unreadCount: 0
-    }).catch(err => console.error("Error resetting unread count:", err));
-  }, [activeChatId]);
+    const activeContact = sortedContacts.find(c => c.id === activeChatId);
+    if (activeContact && (activeContact.unreadCount || 0) > 0) {
+      const contactRef = doc(db, "contacts", activeChatId);
+      updateDoc(contactRef, {
+        unreadCount: 0
+      }).catch(err => console.error("Error resetting unread count:", err));
+    }
+  }, [activeChatId, sortedContacts]);
 
   // Fetch live contacts and users from Bitrix24 and sync to Firestore
   useEffect(() => {
@@ -656,7 +721,7 @@ export default function ChatApp() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  const activeContact = contacts.find((c) => c.id === activeChatId) || (activeChatId ? {
+  const activeContact = sortedContacts.find((c) => c.id === activeChatId) || (activeChatId ? {
     id: activeChatId,
     name: activeChatId,
     preview: "No messages yet",
@@ -666,7 +731,7 @@ export default function ChatApp() {
     responsibleId: undefined,
     statusSelect: undefined,
     label: undefined
-  } as unknown as Contact : (contacts[0] || INITIAL_CONTACTS[0]));
+  } as unknown as Contact : (sortedContacts[0] || INITIAL_CONTACTS[0]));
   const messages = allMessages[activeChatId] || [];
 
   const is24HourWindowActive = () => {
@@ -1118,15 +1183,15 @@ export default function ChatApp() {
   };
 
   // Dynamic counts calculation
-  const allCount = contacts.length;
-  const unprocessedCount = contacts.filter(c => !c.labels || c.labels.length === 0).length;
-  const myCount = contacts.filter(c => currentUser && c.responsibleId === currentUser.id).length;
-  const favoritesCount = contacts.filter(c => c.isFavorite).length;
-  const channelsGroupsCount = contacts.filter(c => c.id.includes("group")).length || 2;
+  const allCount = sortedContacts.length;
+  const unprocessedCount = sortedContacts.filter(c => !c.labels || c.labels.length === 0).length;
+  const myCount = sortedContacts.filter(c => currentUser && c.responsibleId === currentUser.id).length;
+  const favoritesCount = sortedContacts.filter(c => c.isFavorite).length;
+  const channelsGroupsCount = sortedContacts.filter(c => c.id.includes("group")).length || 2;
 
   const getLabelContactCount = (lblId: string, lblName: string) => {
     const nameLower = lblName.toLowerCase();
-    return contacts.filter(c => 
+    return sortedContacts.filter(c => 
       (c.labels && c.labels.includes(lblId)) || 
       (c.label === nameLower)
     ).length;
@@ -1219,7 +1284,7 @@ export default function ChatApp() {
     });
   };
 
-  const filteredContacts = contacts.filter((c) => {
+  const filteredContacts = sortedContacts.filter((c) => {
     const matchesSearch = 
       c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       c.preview.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -1506,7 +1571,7 @@ export default function ChatApp() {
             {(() => {
               const cleanedQuery = searchQuery.replace(/[^\d+]/g, "");
               const isNumeric = /^\+?\d{8,15}$/.test(cleanedQuery);
-              const exists = contacts.some(c => c.id === cleanedQuery || c.id.replace(/[^\d+]/g, "") === cleanedQuery);
+              const exists = sortedContacts.some(c => c.id === cleanedQuery || c.id.replace(/[^\d+]/g, "") === cleanedQuery);
               if (isNumeric && !exists) {
                 return (
                   <div
