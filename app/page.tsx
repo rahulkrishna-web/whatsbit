@@ -573,17 +573,6 @@ export default function ChatApp() {
     localStorage.setItem("whatsbit_active_chat", activeChatId);
   }, [activeChatId]);
 
-  // Reset unread count for the active chat
-  useEffect(() => {
-    if (!activeChatId) return;
-    const activeContact = sortedContacts.find(c => c.id === activeChatId);
-    if (activeContact && (activeContact.unreadCount || 0) > 0) {
-      const contactRef = doc(db, "contacts", activeChatId);
-      updateDoc(contactRef, {
-        unreadCount: 0
-      }).catch(err => console.error("Error resetting unread count:", err));
-    }
-  }, [activeChatId, sortedContacts]);
 
   // Fetch live contacts and users from Bitrix24 and sync to Firestore
   useEffect(() => {
@@ -1543,11 +1532,6 @@ export default function ChatApp() {
                   className={`${styles.contactItem} ${isActive ? styles.contactItemActive : ""}`}
                   onClick={() => {
                     setActiveChatId(contact.id);
-                    if ((contact.unreadCount || 0) > 0) {
-                      const contactRef = doc(db, "contacts", contact.id);
-                      updateDoc(contactRef, { unreadCount: 0 })
-                        .catch(err => console.error("Error resetting unread count:", err));
-                    }
                   }}
                 >
                   <div className={styles.contactAvatar}>{contact.avatar}</div>
@@ -2395,13 +2379,7 @@ export default function ChatApp() {
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && !uploading && handleSend()}
-                onFocus={() => {
-                  if (activeChatId) {
-                    const contactRef = doc(db, "contacts", activeChatId);
-                    updateDoc(contactRef, { unreadCount: 0 })
-                      .catch(err => console.error("Error resetting unread count:", err));
-                  }
-                }}
+
                 disabled={uploading}
                 className={styles.chatInputField}
                 style={uploading ? { opacity: 0.6, cursor: 'not-allowed' } : {}}

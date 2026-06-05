@@ -55,6 +55,7 @@ export async function POST(request: Request) {
         preview: finalMsgText.length > 50 ? finalMsgText.substring(0, 47) + "..." : finalMsgText,
         time: timeString,
         lastUpdated: serverTimestamp(),
+        unreadCount: 0,
       }, { merge: true });
 
       return NextResponse.json({ 
@@ -129,6 +130,7 @@ export async function POST(request: Request) {
       time: timeString,
       lastUpdated: serverTimestamp(),
       statusText: "WhatsApp • Online",
+      unreadCount: 0,
     }, { merge: true });
 
     return NextResponse.json({ 
