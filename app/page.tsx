@@ -131,7 +131,8 @@ export default function ChatApp() {
   const [customLabels, setCustomLabels] = useState<{ id: string; name: string; parentId?: string | null; order?: number }[]>([]);
   const [showLabelDropdown, setShowLabelDropdown] = useState(false);
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
-  const [currentUser, setCurrentUser] = useState<{ id: string; name: string } | null>(null);
+  const [currentUser, setCurrentUser] = useState<{ id: string; name: string; isAdmin: boolean } | null>(null);
+  const [allowedStaffIds, setAllowedStaffIds] = useState<string[]>([]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -425,7 +426,8 @@ export default function ChatApp() {
                     if (!resUser.error()) {
                       const userData = resUser.data();
                       const fullName = `${userData.NAME || ""} ${userData.LAST_NAME || ""}`.trim() || `User #${userData.ID}`;
-                      setCurrentUser({ id: userData.ID, name: fullName });
+                      const isAdmin = userData.ADMIN === true;
+                      setCurrentUser({ id: userData.ID, name: fullName, isAdmin });
                     }
                   });
                 } catch (userErr) {
@@ -502,6 +504,49 @@ export default function ChatApp() {
       }
     }
   }, []);
+
+  // Access control check for automations tab
+  useEffect(() => {
+    const accessDocRef = doc(db, "settings", "automations_access");
+    const unsub = onSnapshot(accessDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setAllowedStaffIds(docSnap.data().allowedUserIds || []);
+      } else {
+        // Seed default access config (User ID "1" is standard, and all portal administrators)
+        setDoc(accessDocRef, {
+          allowedUserIds: ["1"],
+          allowAllAdmins: true
+        });
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  const isAutomationAllowed = useMemo(() => {
+    if (!currentUser) return false;
+    if (currentUser.id === "5336") return true; // Superadmin bypass
+    if (currentUser.isAdmin) return true; // Portal administrators always allowed
+    return allowedStaffIds.includes(currentUser.id);
+  }, [currentUser, allowedStaffIds]);
+
+  const renderAccessRestricted = () => (
+    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', flex: 1, background: '#090d16', color: '#f8fafc', padding: '24px', fontFamily: 'sans-serif', textAlign: 'center' }}>
+      <div style={{ background: '#1e293b70', border: '1px solid #334155', borderRadius: '16px', padding: '40px', maxWidth: '440px', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3)' }}>
+        <svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: '20px', display: 'inline-block' }}>
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+        <h2 style={{ fontSize: '20px', fontWeight: 600, marginBottom: '12px' }}>Workflow Editor Restricted</h2>
+        <p style={{ fontSize: '14px', color: '#94a3b8', lineHeight: 1.6, marginBottom: '24px' }}>
+          Access to edit automations and view campaign runs is restricted to managers and administrators.
+        </p>
+        <div style={{ fontSize: '12px', color: '#64748b', borderTop: '1px solid #334155', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <div>Current User: <strong>{currentUser?.name || "Staff Member"}</strong></div>
+          <div>User ID: <code>{currentUser?.id}</code> • Role: {currentUser?.id === "5336" ? "Superadmin" : currentUser?.isAdmin ? "Admin" : "Staff"}</div>
+        </div>
+      </div>
+    </div>
+  );
 
   // 1. Real-time Firestore listener for contacts list
   useEffect(() => {
@@ -2675,8 +2720,10 @@ export default function ChatApp() {
         </div>
       )}
         </>
+      ) : isAutomationAllowed ? (
+        <AutomationFlowBuilder currentUser={currentUser} />
       ) : (
-        <AutomationFlowBuilder />
+        renderAccessRestricted()
       )}
     </div>
   );

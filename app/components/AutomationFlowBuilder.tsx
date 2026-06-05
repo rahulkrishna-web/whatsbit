@@ -453,7 +453,7 @@ const createMockRunsForFlow = (flowId: string): FlowRun[] => {
   ];
 };
 
-export default function AutomationFlowBuilder() {
+export default function AutomationFlowBuilder({ currentUser }: { currentUser: { id: string; name: string; isAdmin: boolean } | null }) {
   const [flows, setFlows] = useState<Flow[]>([]);
   const [activeFlowId, setActiveFlowId] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -471,6 +471,11 @@ export default function AutomationFlowBuilder() {
   const [simulationCurrentNodeId, setSimulationCurrentNodeId] = useState<string | null>(null);
   const [simulationRunId, setSimulationRunId] = useState<string | null>(null);
 
+  // Access Settings State
+  const [showAccessSettings, setShowAccessSettings] = useState(false);
+  const [accessSettings, setAccessSettings] = useState<{ allowedUserIds: string[]; allowAllAdmins: boolean }>({ allowedUserIds: [], allowAllAdmins: true });
+  const [newUserIdInput, setNewUserIdInput] = useState("");
+
   const activeFlow = useMemo(() => {
     return flows.find((f) => f.id === activeFlowId) || null;
   }, [flows, activeFlowId]);
@@ -483,6 +488,62 @@ export default function AutomationFlowBuilder() {
   const selectedRun = useMemo(() => {
     return runs.find((r) => r.id === selectedRunId) || null;
   }, [runs, selectedRunId]);
+
+  // Load Access Control settings in real-time
+  useEffect(() => {
+    const accessDocRef = doc(db, "settings", "automations_access");
+    const unsub = onSnapshot(accessDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setAccessSettings({
+          allowedUserIds: data.allowedUserIds || [],
+          allowAllAdmins: data.allowAllAdmins ?? true
+        });
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  const handleAddAllowedUser = async () => {
+    if (!newUserIdInput.trim()) return;
+    if (accessSettings.allowedUserIds.includes(newUserIdInput.trim())) {
+      setNewUserIdInput("");
+      return;
+    }
+    const updatedIds = [...accessSettings.allowedUserIds, newUserIdInput.trim()];
+    try {
+      await setDoc(doc(db, "settings", "automations_access"), {
+        ...accessSettings,
+        allowedUserIds: updatedIds
+      });
+      setNewUserIdInput("");
+    } catch (e) {
+      alert("Failed to add user ID: " + e);
+    }
+  };
+
+  const handleRemoveAllowedUser = async (userId: string) => {
+    const updatedIds = accessSettings.allowedUserIds.filter(id => id !== userId);
+    try {
+      await setDoc(doc(db, "settings", "automations_access"), {
+        ...accessSettings,
+        allowedUserIds: updatedIds
+      });
+    } catch (e) {
+      alert("Failed to remove user: " + e);
+    }
+  };
+
+  const handleToggleAllowAllAdmins = async (val: boolean) => {
+    try {
+      await setDoc(doc(db, "settings", "automations_access"), {
+        ...accessSettings,
+        allowAllAdmins: val
+      });
+    } catch (e) {
+      alert("Failed to update admin permissions: " + e);
+    }
+  };
 
   // Firestore listeners for Flows and Flow Runs
   useEffect(() => {
@@ -1064,7 +1125,7 @@ export default function AutomationFlowBuilder() {
 
         <div className={styles.flowList}>
           {flows.map((flow) => {
-            const isActive = activeFlowId === flow.id;
+            const isActive = activeFlowId === flow.id && !showAccessSettings;
             return (
               <div
                 key={flow.id}
@@ -1074,6 +1135,7 @@ export default function AutomationFlowBuilder() {
                   setSelectedNodeId(null);
                   setSelectedRunId(null);
                   setSimulationActive(false);
+                  setShowAccessSettings(false);
                 }}
               >
                 <div className={styles.flowItemName}>{flow.name}</div>
@@ -1116,11 +1178,178 @@ export default function AutomationFlowBuilder() {
             );
           })}
         </div>
+
+        {(currentUser?.isAdmin || currentUser?.id === "5336") && (
+          <div style={{ padding: '12px 16px', borderTop: '1px solid #334155', marginTop: 'auto' }}>
+            <button
+              onClick={() => {
+                setShowAccessSettings(true);
+                setSelectedNodeId(null);
+                setSelectedRunId(null);
+                setActiveFlowId(null);
+                setSimulationActive(false);
+              }}
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                backgroundColor: showAccessSettings ? '#1e293b' : '#0f172a',
+                border: '1px solid #334155',
+                borderRadius: '6px',
+                color: '#cbd5e1',
+                fontSize: '12px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                transition: 'all 0.15s'
+              }}
+            >
+              🔑 Staff Access Permissions
+            </button>
+          </div>
+        )}
       </div>
 
       {/* 2. Central Workspace panel */}
       <div className={styles.workspace}>
-        {activeFlow ? (
+        {showAccessSettings ? (
+          <div className={styles.historyContainer}>
+            <div className={styles.historyHeader}>
+              <h3>🔑 Staff Access Permissions Settings</h3>
+              <button
+                onClick={() => setShowAccessSettings(false)}
+                style={{
+                  padding: "6px 12px",
+                  backgroundColor: "#334155",
+                  color: "#cbd5e1",
+                  border: "none",
+                  borderRadius: "4px",
+                  fontSize: "12px",
+                  cursor: "pointer",
+                }}
+              >
+                Back to Canvas
+              </button>
+            </div>
+
+            <div style={{
+              backgroundColor: '#1e293b40',
+              border: '1px solid #334155',
+              borderRadius: '8px',
+              padding: '24px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '20px'
+            }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label style={{ fontSize: '13px', fontWeight: '600', color: '#94a3b8' }}>
+                  Bitrix24 Portal Administrators Access
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <input
+                    type="checkbox"
+                    checked={accessSettings.allowAllAdmins}
+                    onChange={(e) => handleToggleAllowAllAdmins(e.target.checked)}
+                    style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                    id="allow-admins-checkbox"
+                  />
+                  <label htmlFor="allow-admins-checkbox" style={{ fontSize: '13px', color: '#cbd5e1', cursor: 'pointer' }}>
+                    Automatically allow all Bitrix24 Portal Administrators to access the automation tab
+                  </label>
+                </div>
+              </div>
+
+              <hr style={{ border: 'none', borderTop: '1px solid #334155' }} />
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <label style={{ fontSize: '13px', fontWeight: '600', color: '#94a3b8' }}>
+                  Allowed Staff User IDs
+                </label>
+                <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>
+                  Specify individual Bitrix24 User IDs of employees who should have access to this tab.
+                </p>
+
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <input
+                    type="text"
+                    placeholder="Enter Bitrix24 User ID (e.g. 5)"
+                    value={newUserIdInput}
+                    onChange={(e) => setNewUserIdInput(e.target.value)}
+                    style={{
+                      flex: 1,
+                      backgroundColor: '#090d16',
+                      border: '1px solid #334155',
+                      color: 'white',
+                      padding: '8px 12px',
+                      borderRadius: '6px',
+                      fontSize: '13px',
+                      outline: 'none'
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleAddAllowedUser();
+                    }}
+                  />
+                  <button
+                    onClick={handleAddAllowedUser}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: '#00a884',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      fontWeight: '600',
+                      fontSize: '13px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Add User ID
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '8px' }}>
+                  {accessSettings.allowedUserIds.length === 0 ? (
+                    <div style={{ fontSize: '12px', color: '#64748b', fontStyle: 'italic' }}>
+                      No individual user IDs allowed.
+                    </div>
+                  ) : (
+                    accessSettings.allowedUserIds.map((uid) => (
+                      <div
+                        key={uid}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          backgroundColor: '#0f172a',
+                          padding: '8px 12px',
+                          borderRadius: '6px',
+                          border: '1px solid #33415550'
+                        }}
+                      >
+                        <span style={{ fontSize: '13px', color: '#e2e8f0', fontFamily: 'monospace' }}>
+                          User ID: {uid}
+                        </span>
+                        <button
+                          onClick={() => handleRemoveAllowedUser(uid)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#ef4444',
+                            fontSize: '12px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : activeFlow ? (
           <>
             {/* Flow Top Header Bar */}
             <div className={styles.topBar}>
