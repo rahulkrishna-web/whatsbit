@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import twilio from "twilio";
 import { db } from "../../../../lib/firebase";
-import { doc, setDoc, addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, addDoc, collection, serverTimestamp } from "firebase/firestore";
 
 function cleanPhone(phone: string): string {
   let raw = phone.replace(/^whatsapp:/, "");
@@ -36,8 +36,18 @@ export async function POST(request: Request) {
       );
     }
 
+    let tz = "Asia/Kolkata";
+    try {
+      const profileSnap = await getDoc(doc(db, "settings", "company_profile"));
+      if (profileSnap.exists()) {
+        tz = profileSnap.data().timeZone || "Asia/Kolkata";
+      }
+    } catch (e) {
+      console.warn("Failed to load company timezone, using Asia/Kolkata", e);
+    }
+
     const timeString = new Date().toLocaleTimeString("en-IN", {
-      timeZone: "Asia/Kolkata",
+      timeZone: tz,
       hour: "2-digit",
       minute: "2-digit",
       hour12: true

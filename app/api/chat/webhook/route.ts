@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "../../../../lib/firebase";
 import { 
   doc, 
+  getDoc, 
   setDoc, 
   addDoc, 
   collection, 
@@ -24,6 +25,16 @@ export async function POST(request: Request) {
 
     const messageSid = (data.MessageSid || data.SmsSid) as string;
     const messageStatus = data.MessageStatus as string; // sent, delivered, read, failed
+
+    let tz = "Asia/Kolkata";
+    try {
+      const profileSnap = await getDoc(doc(db, "settings", "company_profile"));
+      if (profileSnap.exists()) {
+        tz = profileSnap.data().timeZone || "Asia/Kolkata";
+      }
+    } catch (e) {
+      console.warn("Failed to load company timezone, using Asia/Kolkata", e);
+    }
 
     // Robust helper to normalize phone numbers consistently
     const cleanPhone = (phone: string): string => {
@@ -62,7 +73,7 @@ export async function POST(request: Request) {
           }
           
           const timeString = new Date().toLocaleTimeString("en-US", {
-            timeZone: "Asia/Kolkata",
+            timeZone: tz,
             hour: "2-digit",
             minute: "2-digit",
             hour12: true,
@@ -168,7 +179,7 @@ export async function POST(request: Request) {
 
     if (fromPhone && (body || mediaUrl)) {
       const timeString = new Date().toLocaleTimeString("en-IN", {
-        timeZone: "Asia/Kolkata",
+        timeZone: tz,
         hour: "2-digit",
         minute: "2-digit",
         hour12: true

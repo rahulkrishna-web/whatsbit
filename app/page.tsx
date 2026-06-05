@@ -127,7 +127,26 @@ export default function ChatApp() {
   const [inputText, setInputText] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeMenuFilter, setActiveMenuFilter] = useState<string>("all");
-  const [activeView, setActiveView] = useState<"chat" | "automations">("chat");
+  const [activeView, setActiveView] = useState<"chat" | "automations" | "settings">("chat");
+  const [companyName, setCompanyName] = useState("RS Choyal");
+  const [logoUrl, setLogoUrl] = useState("/rschoyal-logo.svg");
+  const [timeZone, setTimeZone] = useState("Asia/Kolkata");
+  const [settingsLoading, setSettingsLoading] = useState(false);
+  const [editName, setEditName] = useState("RS Choyal");
+  const [editLogo, setEditLogo] = useState("/rschoyal-logo.svg");
+  const [editTZ, setEditTZ] = useState("Asia/Kolkata");
+
+  useEffect(() => {
+    setEditName(companyName);
+  }, [companyName]);
+
+  useEffect(() => {
+    setEditLogo(logoUrl);
+  }, [logoUrl]);
+
+  useEffect(() => {
+    setEditTZ(timeZone);
+  }, [timeZone]);
   const [customLabels, setCustomLabels] = useState<{ id: string; name: string; parentId?: string | null; order?: number }[]>([]);
   const [showLabelDropdown, setShowLabelDropdown] = useState(false);
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
@@ -476,7 +495,7 @@ export default function ChatApp() {
                             name: fullName,
                             preview: "Phone: " + phone,
                             time: new Date().toLocaleTimeString("en-IN", {
-                              timeZone: "Asia/Kolkata",
+                              timeZone: timeZone,
                               hour: "2-digit",
                               minute: "2-digit",
                               hour12: true
@@ -521,6 +540,44 @@ export default function ChatApp() {
     });
     return () => unsub();
   }, []);
+
+  // Load and subscribe to company profile settings
+  useEffect(() => {
+    const profileDocRef = doc(db, "settings", "company_profile");
+    const unsub = onSnapshot(profileDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setCompanyName(data.companyName || "RS Choyal");
+        setLogoUrl(data.logoUrl || "/rschoyal-logo.svg");
+        setTimeZone(data.timeZone || "Asia/Kolkata");
+      } else {
+        // Seed default profile settings
+        setDoc(profileDocRef, {
+          companyName: "RS Choyal",
+          logoUrl: "/rschoyal-logo.svg",
+          timeZone: "Asia/Kolkata",
+        });
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  const handleSaveSettings = async (name: string, logo: string, tz: string) => {
+    setSettingsLoading(true);
+    try {
+      const profileDocRef = doc(db, "settings", "company_profile");
+      await setDoc(profileDocRef, {
+        companyName: name,
+        logoUrl: logo,
+        timeZone: tz,
+      });
+      alert("Settings saved successfully!");
+    } catch (e: any) {
+      alert("Error saving settings: " + e.message);
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
 
   const isAutomationAllowed = useMemo(() => {
     if (!currentUser) return false;
@@ -902,7 +959,7 @@ export default function ChatApp() {
         
         if (!isNaN(date.getTime())) {
           return date.toLocaleTimeString("en-IN", {
-            timeZone: "Asia/Kolkata",
+            timeZone: timeZone,
             hour: "2-digit",
             minute: "2-digit",
             hour12: true
@@ -924,7 +981,7 @@ export default function ChatApp() {
         
         if (!isNaN(date.getTime())) {
           return date.toLocaleTimeString("en-IN", {
-            timeZone: "Asia/Kolkata",
+            timeZone: timeZone,
             hour: "2-digit",
             minute: "2-digit",
             hour12: true
@@ -1400,6 +1457,169 @@ export default function ChatApp() {
     );
   }
 
+  const renderSettingsView = () => {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, background: '#090d16', color: '#f8fafc', padding: '32px', fontFamily: 'sans-serif', overflowY: 'auto' }}>
+        <div style={{ maxWidth: '600px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          
+          <div style={{ borderBottom: '1px solid #1e293b', paddingBottom: '16px' }}>
+            <h2 style={{ fontSize: '24px', fontWeight: 600, color: '#f8fafc', margin: 0 }}>⚙️ System Settings</h2>
+            <p style={{ fontSize: '13px', color: '#94a3b8', marginTop: '6px' }}>
+              Configure your company profile, branding assets, and scheduling time zone.
+            </p>
+          </div>
+
+          <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {/* Company Name */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label style={{ fontSize: '13px', fontWeight: 600, color: '#cbd5e1' }}>Company Name</label>
+              <input
+                type="text"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                style={{
+                  width: '100%',
+                  background: '#1e293b',
+                  border: '1px solid #334155',
+                  borderRadius: '6px',
+                  padding: '10px 12px',
+                  color: '#f8fafc',
+                  fontSize: '14px',
+                  outline: 'none',
+                }}
+                placeholder="e.g. RS Choyal Group"
+              />
+            </div>
+
+            {/* Logo URL */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label style={{ fontSize: '13px', fontWeight: 600, color: '#cbd5e1' }}>Company Logo URL</label>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <input
+                  type="text"
+                  value={editLogo}
+                  onChange={(e) => setEditLogo(e.target.value)}
+                  style={{
+                    flex: 1,
+                    background: '#1e293b',
+                    border: '1px solid #334155',
+                    borderRadius: '6px',
+                    padding: '10px 12px',
+                    color: '#f8fafc',
+                    fontSize: '14px',
+                    outline: 'none',
+                  }}
+                  placeholder="e.g. /rschoyal-logo.svg or https://domain.com/logo.png"
+                />
+                <div style={{ 
+                  width: '50px', 
+                  height: '40px', 
+                  background: '#1e293b', 
+                  borderRadius: '6px', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  border: '1px solid #334155',
+                  padding: '4px',
+                  overflow: 'hidden'
+                }}>
+                  {editLogo ? (
+                    <img src={editLogo} alt="Preview" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} onError={(e) => {
+                      (e.target as HTMLElement).style.display = 'none';
+                    }} />
+                  ) : (
+                    <span style={{ fontSize: '10px', color: '#64748b' }}>None</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Time Zone */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label style={{ fontSize: '13px', fontWeight: 600, color: '#cbd5e1' }}>Default Time Zone</label>
+              <select
+                value={editTZ}
+                onChange={(e) => setEditTZ(e.target.value)}
+                style={{
+                  width: '100%',
+                  background: '#1e293b',
+                  border: '1px solid #334155',
+                  borderRadius: '6px',
+                  padding: '10px 12px',
+                  color: '#f8fafc',
+                  fontSize: '14px',
+                  outline: 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                <option value="Asia/Kolkata">Asia/Kolkata (IST - UTC+5:30)</option>
+                <option value="UTC">Coordinated Universal Time (UTC)</option>
+                <option value="America/New_York">America/New_York (EST/EDT)</option>
+                <option value="Europe/London">Europe/London (GMT/BST)</option>
+                <option value="Asia/Singapore">Asia/Singapore (SGT)</option>
+                <option value="Asia/Dubai">Asia/Dubai (GST)</option>
+                <option value="Australia/Sydney">Australia/Sydney (AEST/AEDT)</option>
+              </select>
+              <p style={{ fontSize: '11px', color: '#64748b', margin: 0 }}>
+                Used to determine delivery timestamps for outbound chat notifications and automation steps.
+              </p>
+            </div>
+
+            {/* Save Button */}
+            <button
+              onClick={() => handleSaveSettings(editName, editLogo, editTZ)}
+              disabled={settingsLoading}
+              style={{
+                width: '100%',
+                background: '#10b981',
+                color: 'white',
+                border: 'none',
+                padding: '12px',
+                borderRadius: '8px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                fontSize: '14px',
+                marginTop: '8px',
+                transition: 'opacity 0.2s',
+                opacity: settingsLoading ? 0.7 : 1,
+              }}
+            >
+              {settingsLoading ? "Saving Profile..." : "Save Configuration"}
+            </button>
+          </div>
+
+          {/* CRM Placement Admin Tools Section */}
+          <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <h3 style={{ fontSize: '15px', fontWeight: 600, color: '#f8fafc', margin: 0 }}>CRM Placement Administrator Tools</h3>
+            <p style={{ fontSize: '12px', color: '#94a3b8', lineHeight: 1.5, margin: 0 }}>
+              If you have added new layouts or tabs inside your Bitrix24 portal, re-run the layout binding mapping sequence to refresh placements.
+            </p>
+            <button
+              onClick={registerPlacements}
+              style={{
+                background: '#334155',
+                color: '#cbd5e1',
+                border: 'none',
+                padding: '10px 16px',
+                borderRadius: '6px',
+                fontSize: '13px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                alignSelf: 'flex-start',
+                transition: 'background-color 0.2s',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#475569')}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#334155')}
+            >
+              🔄 Re-register CRM Placements
+            </button>
+          </div>
+
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className={styles.appContainer}>
       {/* VSCode-style slim Activity Bar */}
@@ -1443,12 +1663,13 @@ export default function ChatApp() {
 
         <div className={styles.activityBarBottom}>
           <button 
-            onClick={registerPlacements} 
-            className={styles.activityButton}
-            title="Sync CRM Placements"
+            onClick={() => setActiveView("settings")} 
+            className={`${styles.activityButton} ${activeView === "settings" ? styles.activityButtonActive : ""}`}
+            title="System Settings"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
             </svg>
           </button>
         </div>
@@ -1460,8 +1681,18 @@ export default function ChatApp() {
           {isSidebarOpen && (
         <div className={styles.crmSidebar}>
           {/* Top Logo Header */}
-          <div className={styles.crmHeader} style={{ display: 'flex', alignItems: 'center', width: '100%', borderBottom: '1px solid #f1f5f9', paddingBottom: '16px' }}>
-            <img src="/rschoyal-logo.svg" alt="RS Choyal" style={{ height: "30px", width: "auto", display: "block" }} />
+          <div className={styles.crmHeader} style={{ display: 'flex', alignItems: 'center', width: '100%', borderBottom: '1px solid #f1f5f9', paddingBottom: '16px', gap: '8px' }}>
+            {logoUrl && (
+              <img 
+                src={logoUrl} 
+                alt={companyName} 
+                style={{ height: "30px", width: "auto", display: "block", maxHeight: "30px", objectFit: "contain" }} 
+                onError={(e) => {
+                  (e.target as HTMLElement).style.display = 'none';
+                }}
+              />
+            )}
+            <span style={{ fontSize: "14px", fontWeight: "bold", color: "#1e293b" }}>{companyName}</span>
           </div>
 
           {/* System Filters */}
@@ -2720,10 +2951,14 @@ export default function ChatApp() {
         </div>
       )}
         </>
-      ) : isAutomationAllowed ? (
-        <AutomationFlowBuilder currentUser={currentUser} />
+      ) : activeView === "automations" ? (
+        isAutomationAllowed ? (
+          <AutomationFlowBuilder currentUser={currentUser} />
+        ) : (
+          renderAccessRestricted()
+        )
       ) : (
-        renderAccessRestricted()
+        renderSettingsView()
       )}
     </div>
   );
