@@ -1937,7 +1937,7 @@ export default function ChatApp() {
                           )}
                         </div>
                       )}
-                      {msg.text && <div>{msg.text}</div>}
+                      {msg.text && <MessageTextContent text={msg.text} />}
                       {msg.isSent && msg.senderName && (
                         <div style={{ 
                           fontSize: '10px', 
@@ -2592,6 +2592,209 @@ export default function ChatApp() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function getYouTubeId(url: string): string | null {
+  try {
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) ? match[2] : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function LinkPreviewCard({ url }: { url: string }) {
+  const [metadata, setMetadata] = useState<{ title?: string; description?: string; image?: string; error?: boolean } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    fetch(`/api/chat/link-preview?url=${encodeURIComponent(url)}`)
+      .then((res) => {
+        if (!res.ok) throw new Error();
+        return res.json();
+      })
+      .then((data) => {
+        if (active && data.success) {
+          setMetadata({
+            title: data.title,
+            description: data.description,
+            image: data.image,
+          });
+        } else if (active) {
+          setMetadata({ error: true });
+        }
+      })
+      .catch(() => {
+        if (active) setMetadata({ error: true });
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [url]);
+
+  if (loading) {
+    return (
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        padding: '8px 12px',
+        background: 'rgba(255, 255, 255, 0.5)',
+        borderRadius: '8px',
+        border: '1px solid #e2e8f0',
+        maxWidth: '360px',
+        fontSize: '12px',
+        color: '#64748b',
+        marginTop: '4px'
+      }}>
+        <div style={{ width: '12px', height: '12px', border: '2px solid #cbd5e1', borderTop: '2px solid #64748b', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+        <span>Loading preview...</span>
+        <style dangerouslySetInnerHTML={{__html: `
+          @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        `}} />
+      </div>
+    );
+  }
+
+  if (!metadata || metadata.error || (!metadata.title && !metadata.image)) {
+    return null;
+  }
+
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        borderRadius: '8px',
+        border: '1px solid #e2e8f0',
+        backgroundColor: '#fff',
+        overflow: 'hidden',
+        maxWidth: '360px',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.04)',
+        textDecoration: 'none',
+        transition: 'transform 0.2s, box-shadow 0.2s',
+        marginTop: '4px'
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = 'translateY(-1px)';
+        e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.06)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = 'none';
+        e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.04)';
+      }}
+    >
+      {metadata.image && (
+        <div style={{ width: '100%', height: '160px', overflow: 'hidden', position: 'relative', borderBottom: '1px solid #f1f5f9' }}>
+          <img
+            src={metadata.image}
+            alt="Link preview thumbnail"
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+            }}
+          />
+        </div>
+      )}
+      <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        {metadata.title && (
+          <div style={{
+            fontSize: '13px',
+            fontWeight: '600',
+            color: '#1e293b',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            lineHeight: '1.3'
+          }}>
+            {metadata.title}
+          </div>
+        )}
+        {metadata.description && (
+          <div style={{
+            fontSize: '11px',
+            color: '#64748b',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            lineHeight: '1.3'
+          }}>
+            {metadata.description}
+          </div>
+        )}
+        <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px', wordBreak: 'break-all' }}>
+          {new URL(url).hostname}
+        </div>
+      </div>
+    </a>
+  );
+}
+
+function MessageTextContent({ text }: { text: string }) {
+  if (!text) return null;
+
+  const URL_REGEX = /(https?:\/\/[^\s]+)/g;
+  const parts = text.split(URL_REGEX);
+  const urls = text.match(URL_REGEX) || [];
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <div style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
+        {parts.map((part, index) => {
+          if (part.match(URL_REGEX)) {
+            return (
+              <a
+                key={index}
+                href={part}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: '#0284c7', textDecoration: 'underline', wordBreak: 'break-all' }}
+              >
+                {part}
+              </a>
+            );
+          }
+          return part;
+        })}
+      </div>
+
+      {urls.map((url, index) => {
+        const youtubeId = getYouTubeId(url);
+        if (youtubeId) {
+          return (
+            <div key={index} style={{ marginTop: '4px', width: '100%', maxWidth: '360px', overflow: 'hidden', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+              <iframe
+                width="100%"
+                height="200"
+                src={`https://www.youtube.com/embed/${youtubeId}`}
+                title="YouTube video player"
+                frameBorder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+                style={{ border: 'none', display: 'block' }}
+              />
+            </div>
+          );
+        }
+
+        return <LinkPreviewCard key={index} url={url} />;
+      })}
     </div>
   );
 }
