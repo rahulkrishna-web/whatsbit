@@ -61,11 +61,11 @@ export async function POST(request: Request) {
             statusVal = "failed";
           }
           
-          const timeString = new Date().toLocaleTimeString("en-IN", {
+          const timeString = new Date().toLocaleTimeString("en-US", {
             timeZone: "Asia/Kolkata",
             hour: "2-digit",
             minute: "2-digit",
-            hour12: false,
+            hour12: true,
           });
 
           const updatePayload: any = {
