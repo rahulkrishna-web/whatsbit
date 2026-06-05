@@ -20,10 +20,20 @@ function cleanPhone(phone: string): string {
 
 export async function POST(request: Request) {
   try {
-    const { contactId, text, useTemplate, templateSid: customTemplateSid, senderName, mediaUrl, mediaType } = await request.json();
+    const { contactId, text, useTemplate, templateSid: customTemplateSid, senderName, mediaUrl, mediaType, contentVariables } = await request.json();
     
     if (!contactId || (!text && !mediaUrl)) {
-      return NextResponse.json({ success: false, error: "Missing contactId or message content" }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: "Missing contactId or message content" },
+        { 
+          status: 400,
+          headers: {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type",
+          }
+        }
+      );
     }
 
     const timeString = new Date().toLocaleTimeString("en-IN", {
@@ -58,11 +68,20 @@ export async function POST(request: Request) {
         unreadCount: 0,
       }, { merge: true });
 
-      return NextResponse.json({ 
-        success: true, 
-        sid: mockSid, 
-        error: null 
-      });
+      return NextResponse.json(
+        { 
+          success: true, 
+          sid: mockSid, 
+          error: null 
+        },
+        {
+          headers: {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type",
+          }
+        }
+      );
     }
 
     const cleanContactId = cleanPhone(contactId);
@@ -87,6 +106,9 @@ export async function POST(request: Request) {
 
         if (useTemplate) {
           payload.contentSid = selectedTemplateSid;
+          if (contentVariables) {
+            payload.contentVariables = JSON.stringify(contentVariables);
+          }
         } else {
           if (text) {
             payload.body = text;
@@ -133,13 +155,43 @@ export async function POST(request: Request) {
       unreadCount: 0,
     }, { merge: true });
 
-    return NextResponse.json({ 
-      success: !errorMsg, 
-      sid: twilioMessageSid, 
-      error: errorMsg 
-    });
+    return NextResponse.json(
+      { 
+        success: !errorMsg, 
+        sid: twilioMessageSid, 
+        error: errorMsg 
+      },
+      {
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type",
+        }
+      }
+    );
   } catch (error: any) {
     console.error("Failed to send message:", error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: error.message },
+      { 
+        status: 500,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type",
+        }
+      }
+    );
   }
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+    },
+  });
 }
