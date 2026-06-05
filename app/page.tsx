@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo } from "react";
 import styles from "./page.module.css";
+import AutomationFlowBuilder from "./components/AutomationFlowBuilder";
 
 function cleanPhone(phone: string): string {
   let raw = phone.replace(/^whatsapp:/, "");
@@ -126,6 +127,7 @@ export default function ChatApp() {
   const [inputText, setInputText] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeMenuFilter, setActiveMenuFilter] = useState<string>("all");
+  const [activeView, setActiveView] = useState<"chat" | "automations">("chat");
   const [customLabels, setCustomLabels] = useState<{ id: string; name: string; parentId?: string | null; order?: number }[]>([]);
   const [showLabelDropdown, setShowLabelDropdown] = useState(false);
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
@@ -1363,13 +1365,33 @@ export default function ChatApp() {
               <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.513 2.262 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.455L0 24zm6.59-4.846c1.665.988 3.3.15 5.367.15 5.068 0 9.197-4.127 9.2-9.197.002-2.457-.962-4.767-2.715-6.523C16.69 1.83 14.383.867 11.92.867c-5.071 0-9.2 4.127-9.202 9.2-.001 1.942.508 3.834 1.474 5.513l-.993 3.63 3.448-.926z"/>
             </svg>
           </div>
+          {/* Chat View Tab */}
           <button 
-            className={`${styles.activityButton} ${isSidebarOpen ? styles.activityButtonActive : ""}`} 
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            title="Toggle Sidebar"
+            className={`${styles.activityButton} ${activeView === "chat" ? styles.activityButtonActive : ""}`} 
+            onClick={() => {
+              setActiveView("chat");
+              setIsSidebarOpen(true);
+            }}
+            title="Chat & CRM"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+          </button>
+
+          {/* Automations Tab */}
+          <button 
+            className={`${styles.activityButton} ${activeView === "automations" ? styles.activityButtonActive : ""}`} 
+            onClick={() => {
+              setActiveView("automations");
+            }}
+            title="Workflows & Automations"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="6" y1="3" x2="6" y2="15"></line>
+              <circle cx="18" cy="6" r="3"></circle>
+              <circle cx="6" cy="18" r="3"></circle>
+              <path d="M18 9a9 9 0 0 1-9 9"></path>
             </svg>
           </button>
         </div>
@@ -1387,8 +1409,10 @@ export default function ChatApp() {
         </div>
       </div>
 
-      {/* 1. CRM Sidebar */}
-      {isSidebarOpen && (
+      {activeView === "chat" ? (
+        <>
+          {/* 1. CRM Sidebar */}
+          {isSidebarOpen && (
         <div className={styles.crmSidebar}>
           {/* Top Logo Header */}
           <div className={styles.crmHeader} style={{ display: 'flex', alignItems: 'center', width: '100%', borderBottom: '1px solid #f1f5f9', paddingBottom: '16px' }}>
@@ -2649,6 +2673,10 @@ export default function ChatApp() {
             </div>
           </div>
         </div>
+      )}
+        </>
+      ) : (
+        <AutomationFlowBuilder />
       )}
     </div>
   );
