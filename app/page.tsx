@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import styles from "./page.module.css";
 import AutomationFlowBuilder from "./components/AutomationFlowBuilder";
+import CampaignsDashboard from "./components/CampaignsDashboard";
 
 function cleanPhone(phone: string): string {
   let raw = phone.replace(/^whatsapp:/, "");
@@ -127,7 +128,7 @@ export default function ChatApp() {
   const [inputText, setInputText] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeMenuFilter, setActiveMenuFilter] = useState<string>("all");
-  const [activeView, setActiveView] = useState<"chat" | "automations" | "settings">("chat");
+  const [activeView, setActiveView] = useState<"chat" | "automations" | "settings" | "campaigns">("chat");
   const [companyName, setCompanyName] = useState("RS Choyal");
   const [logoUrl, setLogoUrl] = useState("/rschoyal-logo.svg");
   const [timeZone, setTimeZone] = useState("Asia/Kolkata");
@@ -1723,6 +1724,19 @@ export default function ChatApp() {
               <path d="M18 9a9 9 0 0 1-9 9"></path>
             </svg>
           </button>
+
+          {/* Campaigns Tab */}
+          <button 
+            className={`${styles.activityButton} ${activeView === "campaigns" ? styles.activityButtonActive : ""}`} 
+            onClick={() => {
+              setActiveView("campaigns");
+            }}
+            title="Marketing Campaigns"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
+            </svg>
+          </button>
         </div>
 
         <div className={styles.activityBarBottom}>
@@ -3020,6 +3034,12 @@ export default function ChatApp() {
       ) : activeView === "automations" ? (
         isAutomationAllowed ? (
           <AutomationFlowBuilder currentUser={currentUser} />
+        ) : (
+          renderAccessRestricted()
+        )
+      ) : activeView === "campaigns" ? (
+        isAutomationAllowed ? (
+          <CampaignsDashboard currentUser={currentUser} />
         ) : (
           renderAccessRestricted()
         )

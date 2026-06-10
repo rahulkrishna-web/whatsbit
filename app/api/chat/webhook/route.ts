@@ -61,24 +61,25 @@ export async function POST(request: Request) {
         const q = query(messagesRef, where("twilioSid", "==", messageSid));
         const querySnapshot = await getDocs(q);
         
+        let statusVal: "sent" | "delivered" | "read" | "failed" = "sent";
+        if (messageStatus === "read") {
+          statusVal = "read";
+        } else if (messageStatus === "delivered") {
+          statusVal = "delivered";
+        } else if (messageStatus === "failed" || messageStatus === "undelivered") {
+          statusVal = "failed";
+        }
+        
+        const timeString = new Date().toLocaleTimeString("en-US", {
+          timeZone: tz,
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
+        });
+
         if (!querySnapshot.empty) {
           const docRef = querySnapshot.docs[0].ref;
-          let statusVal: "sent" | "delivered" | "read" | "failed" = "sent";
-          if (messageStatus === "read") {
-            statusVal = "read";
-          } else if (messageStatus === "delivered") {
-            statusVal = "delivered";
-          } else if (messageStatus === "failed" || messageStatus === "undelivered") {
-            statusVal = "failed";
-          }
           
-          const timeString = new Date().toLocaleTimeString("en-US", {
-            timeZone: tz,
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: true,
-          });
-
           const updatePayload: any = {
             status: statusVal
           };
@@ -100,6 +101,66 @@ export async function POST(request: Request) {
           }
           
           await updateDoc(docRef, updatePayload);
+        }
+
+        // Handle campaigns integrations
+        try {
+          const campaignMsgRef = doc(db, "campaign_messages", messageSid);
+          const campaignMsgSnap = await getDoc(campaignMsgRef);
+          if (campaignMsgSnap.exists()) {
+            const { campaignId, phone } = campaignMsgSnap.data();
+            if (campaignId && phone) {
+              const recipientRef = doc(db, "campaigns", campaignId, "recipients", phone);
+              const recipientSnap = await getDoc(recipientRef);
+              if (recipientSnap.exists()) {
+                const recipientData = recipientSnap.data();
+                const oldStatus = recipientData.status;
+                
+                // Update recipient status and logs
+                const recipientUpdate: any = {
+                  status: statusVal,
+                };
+                if (statusVal === "delivered") {
+                  recipientUpdate.deliveredAt = timeString;
+                } else if (statusVal === "read") {
+                  recipientUpdate.readAt = timeString;
+                  if (!recipientData.deliveredAt) {
+                    recipientUpdate.deliveredAt = timeString;
+                  }
+                }
+                if (data.ErrorCode) {
+                  recipientUpdate.errorCode = String(data.ErrorCode);
+                }
+                if (data.ErrorMessage) {
+                  recipientUpdate.errorMessage = String(data.ErrorMessage);
+                }
+                
+                await updateDoc(recipientRef, recipientUpdate);
+                
+                // Adjust campaign counters
+                if (oldStatus !== statusVal) {
+                  const campaignRef = doc(db, "campaigns", campaignId);
+                  const campaignUpdates: any = {};
+                  
+                  // Decrement old status counter
+                  if (oldStatus === "sent") campaignUpdates.sentCount = increment(-1);
+                  else if (oldStatus === "delivered") campaignUpdates.deliveredCount = increment(-1);
+                  else if (oldStatus === "read") campaignUpdates.readCount = increment(-1);
+                  else if (oldStatus === "failed") campaignUpdates.failedCount = increment(-1);
+                  
+                  // Increment new status counter
+                  if (statusVal === "sent") campaignUpdates.sentCount = increment(1);
+                  else if (statusVal === "delivered") campaignUpdates.deliveredCount = increment(1);
+                  else if (statusVal === "read") campaignUpdates.readCount = increment(1);
+                  else if (statusVal === "failed") campaignUpdates.failedCount = increment(1);
+                  
+                  await updateDoc(campaignRef, campaignUpdates);
+                }
+              }
+            }
+          }
+        } catch (campaignErr) {
+          console.error("Error updating campaign status from webhook:", campaignErr);
         }
       }
       return new NextResponse("<Response></Response>", {

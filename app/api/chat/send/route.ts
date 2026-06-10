@@ -20,7 +20,7 @@ function cleanPhone(phone: string): string {
 
 export async function POST(request: Request) {
   try {
-    const { contactId, text, useTemplate, templateSid: customTemplateSid, senderName, mediaUrl, mediaType, contentVariables } = await request.json();
+    const { contactId, text, useTemplate, templateSid: customTemplateSid, senderName, mediaUrl, mediaType, contentVariables, campaignId } = await request.json();
     
     if (!contactId || (!text && !mediaUrl)) {
       return NextResponse.json(
@@ -152,6 +152,18 @@ export async function POST(request: Request) {
       mediaUrl: mediaUrl || null,
       mediaType: mediaType || null,
     });
+
+    if (campaignId && !errorMsg && twilioMessageSid) {
+      try {
+        await setDoc(doc(db, "campaign_messages", twilioMessageSid), {
+          campaignId,
+          phone: contactId,
+          timestamp: serverTimestamp()
+        });
+      } catch (e) {
+        console.error("Failed to write campaign message mapping:", e);
+      }
+    }
 
     // Update contacts list metadata to surface latest message preview
     const contactRef = doc(db, "contacts", contactId);
