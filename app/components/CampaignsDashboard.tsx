@@ -75,16 +75,25 @@ const PREDEFINED_TEMPLATES = [
 ];
 
 function cleanPhone(phone: string): string {
-  let raw = phone.replace(/^whatsapp:/, "");
+  let raw = phone.trim().replace(/^whatsapp:/, "");
   let cleaned = raw.replace(/[^\d+]/g, "");
-  if (/^\d{10}$/.test(cleaned)) {
-    cleaned = "+91" + cleaned;
+  
+  if (cleaned.startsWith("00")) {
+    cleaned = "+" + cleaned.substring(2);
   }
-  if (/^91\d{10}$/.test(cleaned)) {
-    cleaned = "+" + cleaned;
+  
+  if (!cleaned.startsWith("+") && cleaned.startsWith("0") && cleaned.length === 11) {
+    cleaned = cleaned.substring(1);
   }
-  if (/^[1-9]\d{10,14}$/.test(cleaned) && !cleaned.startsWith("+")) {
-    cleaned = "+" + cleaned;
+  
+  if (!cleaned.startsWith("+")) {
+    if (/^\d{10}$/.test(cleaned)) {
+      cleaned = "+91" + cleaned;
+    } else if (/^91\d{10}$/.test(cleaned)) {
+      cleaned = "+" + cleaned;
+    } else {
+      cleaned = "+91" + cleaned;
+    }
   }
   return cleaned;
 }
@@ -100,10 +109,29 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
 
   // Form states
   const [newCampaignName, setNewCampaignName] = useState("");
-  const [selectedTemplateId, setSelectedTemplateId] = useState("welcome_choyal");
+  const [selectedTemplateId, setSelectedTemplateId] = useState("HX68dfb84bba8143c63d42fb9d3a3a9af6");
   const [isCustomTemplate, setIsCustomTemplate] = useState(false);
   const [customTemplateSid, setCustomTemplateSid] = useState("");
   const [customTemplateText, setCustomTemplateText] = useState("");
+
+  // Twilio Templates states
+  const [twilioTemplates, setTwilioTemplates] = useState<any[]>([
+    {
+      sid: "HX68dfb84bba8143c63d42fb9d3a3a9af6",
+      friendlyName: "RS Choyal Welcome",
+      body: "Hello, Thank you for connecting with RS Choyal Group. Please let us know how we can assist you today?",
+      language: "en"
+    },
+    {
+      sid: "HX4fc87b16abefa2e835b5e0f881b76213",
+      friendlyName: "webinar_invite_text",
+      body: "Hi {{1}},\nYou're invited to an exclusive webinar by CHARGE, part of RS Choyal Group! 🎓\n\nTopic: {{2}}\n📅 Date: {{3}} ({{4}})\n🕒 Time: {{5}} IST\n🎙️ Speaker: {{6}} | {{7}}\n\nWhat you'll learn:\n✔️ {{8}}\n✔️ {{9}}\n✔️ {{10}}\nThis webinar is perfect for:\n✔️ {{11}}\n✔️ {{12}}\n✔️ {{13}}\n\nRegister now at {{14}}\n\nSpots are limited!",
+      language: "en"
+    }
+  ]);
+  const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
+  const [showTemplateGridModal, setShowTemplateGridModal] = useState(false);
+  const [templatesSearchQuery, setTemplatesSearchQuery] = useState("");
   const [recipientSource, setRecipientSource] = useState<"manual" | "csv">("manual");
   const [manualNumbers, setManualNumbers] = useState("");
   const [delaySeconds, setDelaySeconds] = useState(2);
@@ -145,6 +173,26 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
     return () => unsub();
   }, [activeCampaignId, isCreating]);
 
+  const fetchTwilioTemplates = async () => {
+    setIsLoadingTemplates(true);
+    try {
+      const res = await fetch("/api/twilio/templates");
+      const result = await res.json();
+      if (result.success) {
+        setTwilioTemplates(result.templates || []);
+      }
+    } catch (e) {
+      console.error("Error fetching Twilio templates:", e);
+    } finally {
+      setIsLoadingTemplates(false);
+    }
+  };
+
+  // Load templates on component mount
+  useEffect(() => {
+    fetchTwilioTemplates();
+  }, []);
+
   // Load active campaign's recipients
   useEffect(() => {
     if (!activeCampaignId) {
@@ -170,15 +218,14 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
   // Extract variables of the selected template
   const templateText = useMemo(() => {
     if (isCustomTemplate) return customTemplateText;
-    const pre = PREDEFINED_TEMPLATES.find(t => t.id === selectedTemplateId);
-    return pre ? pre.text : "";
-  }, [isCustomTemplate, selectedTemplateId, customTemplateText]);
+    const found = twilioTemplates.find(t => t.sid === selectedTemplateId);
+    return found ? found.body : "";
+  }, [isCustomTemplate, selectedTemplateId, customTemplateText, twilioTemplates]);
 
   const templateSid = useMemo(() => {
     if (isCustomTemplate) return customTemplateSid;
-    const pre = PREDEFINED_TEMPLATES.find(t => t.id === selectedTemplateId);
-    return pre ? pre.templateSid : "";
-  }, [isCustomTemplate, selectedTemplateId, customTemplateSid]);
+    return selectedTemplateId;
+  }, [isCustomTemplate, customTemplateSid, selectedTemplateId]);
 
   const templateVariables = useMemo(() => {
     const regex = /\{\{(\d+)\}\}/g;
@@ -191,6 +238,14 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
     }
     return matches.sort((a, b) => parseInt(a) - parseInt(b));
   }, [templateText]);
+
+  const filteredTemplates = useMemo(() => {
+    return twilioTemplates.filter(t => 
+      (t.friendlyName || "").toLowerCase().includes(templatesSearchQuery.toLowerCase()) ||
+      (t.sid || "").toLowerCase().includes(templatesSearchQuery.toLowerCase()) ||
+      (t.body || "").toLowerCase().includes(templatesSearchQuery.toLowerCase())
+    );
+  }, [twilioTemplates, templatesSearchQuery]);
 
   // Initialize variable mapping options when selected template changes
   useEffect(() => {
@@ -309,7 +364,7 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
     try {
       const templateName = isCustomTemplate 
         ? "Custom Template" 
-        : PREDEFINED_TEMPLATES.find(t => t.id === selectedTemplateId)?.name || "Template";
+        : twilioTemplates.find(t => t.sid === selectedTemplateId)?.friendlyName || "Template";
 
       // Write campaign metadata
       const campRef = doc(collection(db, "campaigns"));
@@ -724,23 +779,90 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
                 </div>
 
                 <div className={styles.inputGroup}>
-                  <label>Select Template</label>
-                  <select 
-                    value={isCustomTemplate ? "custom" : selectedTemplateId}
-                    onChange={(e) => {
-                      if (e.target.value === "custom") {
-                        setIsCustomTemplate(true);
-                      } else {
-                        setIsCustomTemplate(false);
-                        setSelectedTemplateId(e.target.value);
-                      }
-                    }}
-                  >
-                    {PREDEFINED_TEMPLATES.map(t => (
-                      <option key={t.id} value={t.id}>{t.name}</option>
-                    ))}
-                    <option value="custom">Create Custom Template...</option>
-                  </select>
+                  <label>WhatsApp Template (from Twilio)</label>
+                  {selectedTemplateId && !isCustomTemplate ? (
+                    <div className={styles.selectedTemplateBadge}>
+                      <div className={styles.selectedTemplateInfo}>
+                        <div className={styles.selectedTemplateTitle}>
+                          {twilioTemplates.find(t => t.sid === selectedTemplateId)?.friendlyName || "Template " + selectedTemplateId}
+                        </div>
+                        <div className={styles.selectedTemplateSidText}>
+                          SID: {selectedTemplateId}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button 
+                          type="button" 
+                          className={styles.btnSecondary}
+                          onClick={() => {
+                            fetchTwilioTemplates();
+                            setShowTemplateGridModal(true);
+                          }}
+                        >
+                          Change Template
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.btnSecondary}
+                          onClick={() => {
+                            setIsCustomTemplate(true);
+                            setSelectedTemplateId("");
+                          }}
+                        >
+                          Use Custom Template
+                        </button>
+                      </div>
+                    </div>
+                  ) : isCustomTemplate ? (
+                    <div className={styles.selectedTemplateBadge}>
+                      <div className={styles.selectedTemplateInfo}>
+                        <div className={styles.selectedTemplateTitle}>
+                          Custom Manual Template
+                        </div>
+                        <div className={styles.selectedTemplateSidText}>
+                          Using direct SID and text override
+                        </div>
+                      </div>
+                      <button 
+                        type="button" 
+                        className={styles.btnSecondary}
+                        onClick={() => {
+                          setIsCustomTemplate(false);
+                          fetchTwilioTemplates();
+                          setShowTemplateGridModal(true);
+                        }}
+                      >
+                        Select from Twilio
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', gap: '12px' }}>
+                      <button 
+                        type="button" 
+                        className={styles.templateSelectBtn}
+                        style={{ flex: 1 }}
+                        onClick={() => {
+                          fetchTwilioTemplates();
+                          setShowTemplateGridModal(true);
+                        }}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                          <line x1="9" y1="3" x2="9" y2="21"/>
+                        </svg>
+                        Select Template from Twilio
+                      </button>
+                      <button 
+                        type="button" 
+                        className={styles.templateSelectBtn}
+                        onClick={() => {
+                          setIsCustomTemplate(true);
+                        }}
+                      >
+                        Manual Custom Template
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {isCustomTemplate && (
@@ -881,6 +1003,7 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
                       />
                       <button 
                         className={styles.btnSecondary} 
+                        type="button"
                         onClick={() => fileInputRef.current?.click()}
                       >
                         Choose CSV File
@@ -888,6 +1011,31 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
                       <span className={styles.campaignSubtitle}>
                         {csvRows.length > 0 ? `Loaded ${csvRows.length} rows` : "No file chosen"}
                       </span>
+                    </div>
+
+                    <div className={styles.csvFormatBox}>
+                      <div className={styles.csvFormatHeader}>
+                        <span>Sample CSV Format</span>
+                        <button 
+                          type="button" 
+                          className={styles.copyFormatBtn}
+                          onClick={() => {
+                            navigator.clipboard.writeText("mobile,name\n+919876543210,John Doe\n+918888888888,Jane Smith");
+                            alert("Sample CSV format copied to clipboard!");
+                          }}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                          </svg>
+                          Copy Format
+                        </button>
+                      </div>
+                      <pre className={styles.csvFormatPre}>
+{`mobile,name
++919876543210,John Doe
++918888888888,Jane Smith`}
+                      </pre>
                     </div>
 
                     {csvHeaders.length > 0 && (
@@ -1312,6 +1460,102 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
               >
                 {isSendingTest ? "Sending..." : "Send Test Message"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 4. TWILIO TEMPLATE SELECTOR GRID MODAL */}
+      {showTemplateGridModal && (
+        <div className={styles.modalOverlay}>
+          <div className={`${styles.modal} ${styles.templateGridModal}`}>
+            <div className={styles.modalHeader}>
+              <h3>Select Twilio WhatsApp Template</h3>
+              <button className={styles.closeButton} onClick={() => setShowTemplateGridModal(false)}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+            
+            <div className={styles.modalBody}>
+              <input 
+                type="text"
+                placeholder="Search templates by SID, name or content..."
+                className={styles.templatesSearch}
+                value={templatesSearchQuery}
+                onChange={(e) => setTemplatesSearchQuery(e.target.value)}
+              />
+
+              {isLoadingTemplates ? (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '40px', gap: '8px', alignItems: 'center' }}>
+                  <div className={styles.spinner}></div>
+                  <span>Loading templates from Twilio...</span>
+                </div>
+              ) : (
+                <div className={styles.templatesGrid}>
+                  {filteredTemplates.map((t) => {
+                    const regex = /\{\{(\d+)\}\}/g;
+                    const matches: string[] = [];
+                    let match;
+                    while ((match = regex.exec(t.body || "")) !== null) {
+                      if (!matches.includes(match[1])) {
+                        matches.push(match[1]);
+                      }
+                    }
+                    const varCount = matches.length;
+
+                    return (
+                      <button 
+                        key={t.sid}
+                        type="button"
+                        className={`${styles.templateGridItem} ${selectedTemplateId === t.sid ? styles.templateGridItemActive : ""}`}
+                        onClick={() => {
+                          setSelectedTemplateId(t.sid);
+                          setIsCustomTemplate(false);
+                          setShowTemplateGridModal(false);
+                        }}
+                      >
+                        <div className={styles.templateGridItemHeader}>
+                          <span className={styles.templateGridItemName}>{t.friendlyName}</span>
+                          <span className={styles.statusIndicator} style={{ backgroundColor: '#1e293b', color: '#cbd5e1' }}>
+                            {t.language}
+                          </span>
+                        </div>
+                        <div className={styles.templateGridItemSid}>{t.sid}</div>
+                        <div className={styles.templateGridItemBody}>{t.body}</div>
+                        <div className={styles.templateGridItemVarsCount}>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '4px' }}>
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                            <line x1="9" y1="3" x2="9" y2="21"/>
+                          </svg>
+                          <span>{varCount} variable{varCount !== 1 ? 's' : ''}</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                  {filteredTemplates.length === 0 && (
+                    <div style={{ gridColumn: 'span 2', textAlign: 'center', padding: '40px', color: '#64748b' }}>
+                      No templates found matching your search.
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className={styles.modalFooter}>
+              <button 
+                type="button"
+                className={styles.btnSecondary} 
+                onClick={() => {
+                  fetchTwilioTemplates();
+                }}
+                disabled={isLoadingTemplates}
+              >
+                Refresh
+              </button>
+              <button className={styles.btnSecondary} onClick={() => setShowTemplateGridModal(false)}>Close</button>
             </div>
           </div>
         </div>
