@@ -105,6 +105,7 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
   const [activeTab, setActiveTab] = useState<"logs" | "details">("logs");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [isCreating, setIsCreating] = useState(false);
+  const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
   const [simulationMode, setSimulationMode] = useState(true);
 
   // Form states
@@ -149,7 +150,6 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
   // Test Message popup state
   const [showTestModal, setShowTestModal] = useState(false);
   const [testNumber, setTestNumber] = useState("");
-  const [testVariables, setTestVariables] = useState<Record<string, string>>({});
   const [isSendingTest, setIsSendingTest] = useState(false);
   const [testLog, setTestLog] = useState("");
 
@@ -407,27 +407,55 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
         ? "Custom Template" 
         : twilioTemplates.find(t => t.sid === selectedTemplateId)?.friendlyName || "Template";
 
-      // Write campaign metadata
-      const campRef = doc(collection(db, "campaigns"));
-      const campData: Campaign = {
-        id: campRef.id,
-        name: newCampaignName.trim(),
-        templateSid,
-        templateName,
-        templateText,
-        status: "draft",
-        createdAt: serverTimestamp(),
-        totalCount: uniqMap.size,
-        sentCount: 0,
-        deliveredCount: 0,
-        readCount: 0,
-        failedCount: 0,
-        delaySeconds,
-        stopOnSpam,
-        failureThreshold,
-        consecutiveFailureThreshold
-      };
-      await setDoc(campRef, campData);
+      let campId = "";
+      if (editingCampaignId) {
+        campId = editingCampaignId;
+        const campRef = doc(db, "campaigns", campId);
+        
+        // Update campaign metadata
+        await updateDoc(campRef, {
+          name: newCampaignName.trim(),
+          templateSid,
+          templateName,
+          templateText,
+          totalCount: uniqMap.size,
+          delaySeconds,
+          stopOnSpam,
+          failureThreshold,
+          consecutiveFailureThreshold
+        });
+        
+        // Delete all old recipients from subcollection
+        const oldRecsSnap = await getDocs(collection(db, "campaigns", campId, "recipients"));
+        const deleteBatch = writeBatch(db);
+        oldRecsSnap.forEach((doc) => {
+          deleteBatch.delete(doc.ref);
+        });
+        await deleteBatch.commit();
+      } else {
+        // Write new campaign metadata
+        const campRef = doc(collection(db, "campaigns"));
+        campId = campRef.id;
+        const campData: Campaign = {
+          id: campId,
+          name: newCampaignName.trim(),
+          templateSid,
+          templateName,
+          templateText,
+          status: "draft",
+          createdAt: serverTimestamp(),
+          totalCount: uniqMap.size,
+          sentCount: 0,
+          deliveredCount: 0,
+          readCount: 0,
+          failedCount: 0,
+          delaySeconds,
+          stopOnSpam,
+          failureThreshold,
+          consecutiveFailureThreshold
+        };
+        await setDoc(campRef, campData);
+      }
 
       // Write recipients in batches of 500
       const batchList = Array.from(uniqMap.entries());
@@ -436,7 +464,7 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
         const batch = writeBatch(db);
         const chunk = batchList.slice(i, i + batchSize);
         chunk.forEach(([phone, variables]) => {
-          const recDocRef = doc(db, "campaigns", campRef.id, "recipients", phone);
+          const recDocRef = doc(db, "campaigns", campId, "recipients", phone);
           batch.set(recDocRef, {
             status: "pending",
             variables
@@ -446,7 +474,8 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
       }
 
       setIsCreating(false);
-      setActiveCampaignId(campRef.id);
+      setEditingCampaignId(null);
+      setActiveCampaignId(campId);
       // Reset form fields
       setNewCampaignName("");
       setManualNumbers("");
@@ -454,8 +483,48 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
       setCsvRows([]);
       setSelectedPhoneColumn("");
     } catch (err: any) {
-      alert("Error creating campaign: " + err.message);
+      alert("Error saving campaign: " + err.message);
     }
+  };
+
+  const handleEditCampaign = () => {
+    if (!activeCampaign) return;
+    setEditingCampaignId(activeCampaign.id);
+    setNewCampaignName(activeCampaign.name);
+    
+    // Check template type
+    const isCustom = activeCampaign.templateName === "Custom Template";
+    setIsCustomTemplate(isCustom);
+    if (isCustom) {
+      setCustomTemplateSid(activeCampaign.templateSid || "");
+      setCustomTemplateText(activeCampaign.templateText || "");
+    } else {
+      setSelectedTemplateId(activeCampaign.templateSid || "");
+    }
+    
+    setDelaySeconds(activeCampaign.delaySeconds || 2);
+    setStopOnSpam(activeCampaign.stopOnSpam !== false);
+    setFailureThreshold(activeCampaign.failureThreshold || 15);
+    setConsecutiveFailureThreshold(activeCampaign.consecutiveFailureThreshold || 3);
+    
+    // Load recipients
+    const recipientPhones = recipients.map(r => r.phone).join("\n");
+    setManualNumbers(recipientPhones);
+    setRecipientSource("manual");
+    
+    // Load mappings
+    if (recipients.length > 0) {
+      const firstRecVars = recipients[0].variables || {};
+      const newMappings: Record<string, { type: "csv" | "default"; value: string; fallback?: string }> = {};
+      Object.entries(firstRecVars).forEach(([v, val]) => {
+        newMappings[v] = { type: "default", value: val as string };
+      });
+      setVariableMappings(newMappings);
+    } else {
+      setVariableMappings({});
+    }
+    
+    setIsCreating(true);
   };
 
   const handleStartCampaign = async () => {
@@ -686,11 +755,6 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
 
   // Handle Send Test Message
   const handleOpenTestModal = () => {
-    const initialTestVars: Record<string, string> = {};
-    templateVariables.forEach(v => {
-      initialTestVars[v] = "";
-    });
-    setTestVariables(initialTestVars);
     setTestLog("");
     setTestNumber("");
     setShowTestModal(true);
@@ -702,7 +766,35 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
       return;
     }
     setIsSendingTest(true);
-    setTestLog("Sending test message...");
+    
+    // Auto-compile variables
+    const compiledVars: Record<string, string> = {};
+    if (isCreating) {
+      templateVariables.forEach(v => {
+        const mapping = variableMappings[v];
+        if (mapping) {
+          if (mapping.type === "default") {
+            compiledVars[v] = mapping.value || "";
+          } else if (mapping.type === "csv") {
+            if (csvRows.length > 0 && mapping.value && csvRows[0][mapping.value]) {
+              compiledVars[v] = csvRows[0][mapping.value];
+            } else {
+              compiledVars[v] = mapping.fallback || "";
+            }
+          }
+        } else {
+          compiledVars[v] = "";
+        }
+      });
+    } else {
+      const firstRecVars = recipients[0]?.variables || {};
+      templateVariables.forEach(v => {
+        compiledVars[v] = firstRecVars[v] || "";
+      });
+    }
+
+    setTestLog(`Compiling variables & sending test message...\nVariables to send:\n${JSON.stringify(compiledVars, null, 2)}`);
+    
     try {
       const res = await fetch("/api/chat/send", {
         method: "POST",
@@ -713,17 +805,17 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
           useTemplate: true,
           templateSid: templateSid,
           senderName: currentUser ? currentUser.name : "Tester",
-          contentVariables: testVariables
+          contentVariables: compiledVars
         })
       });
       const result = await res.json();
       if (result.success) {
-        setTestLog(`Success! Message sent.\nTwilio Message SID: ${result.sid}`);
+        setTestLog(prev => `${prev}\n\nSuccess! Message sent.\nTwilio Message SID: ${result.sid}`);
       } else {
-        setTestLog(`Failed to send test message:\nError: ${result.error}`);
+        setTestLog(prev => `${prev}\n\nFailed to send test message:\nError: ${result.error}`);
       }
     } catch (e: any) {
-      setTestLog(`Request Error: ${e.message}`);
+      setTestLog(prev => `${prev}\n\nRequest Error: ${e.message}`);
     } finally {
       setIsSendingTest(false);
     }
@@ -755,7 +847,16 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
           </h2>
           <button 
             className={styles.createButton}
-            onClick={() => setIsCreating(true)}
+            onClick={() => {
+              setIsCreating(true);
+              setEditingCampaignId(null);
+              setNewCampaignName("");
+              setManualNumbers("");
+              setCsvHeaders([]);
+              setCsvRows([]);
+              setSelectedPhoneColumn("");
+              setVariableMappings({});
+            }}
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -772,6 +873,7 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
               className={`${styles.campaignItem} ${activeCampaignId === camp.id && !isCreating ? styles.campaignItemActive : ""}`}
               onClick={() => {
                 setIsCreating(false);
+                setEditingCampaignId(null);
                 setActiveCampaignId(camp.id);
               }}
             >
@@ -805,7 +907,7 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
         {isCreating ? (
           /* A. CAMPAIGN CREATION FORM */
           <div className={styles.contentArea}>
-            <div className={styles.formHeader}>Create Marketing Campaign</div>
+            <div className={styles.formHeader}>{editingCampaignId ? "Edit Campaign" : "Create Marketing Campaign"}</div>
             
             <div className={styles.formGrid}>
               <div className={styles.formMain}>
@@ -1218,7 +1320,7 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
                     className={styles.btnPrimary}
                     onClick={handleCreateCampaign}
                   >
-                    Save & Create Campaign
+                    {editingCampaignId ? "Save Campaign" : "Save & Create Campaign"}
                   </button>
                   <button 
                     className={styles.btnSecondary}
@@ -1290,6 +1392,15 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
                 >
                   Send Test...
                 </button>
+
+                {activeCampaign.status !== "running" && (
+                  <button 
+                    className={styles.btnSecondary}
+                    onClick={handleEditCampaign}
+                  >
+                    Edit
+                  </button>
+                )}
 
                 <button 
                   className={styles.btnDanger}
@@ -1523,24 +1634,6 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
                   onChange={(e) => setTestNumber(e.target.value)}
                 />
               </div>
-
-              {templateVariables.map((v) => (
-                <div className={styles.inputGroup} key={v}>
-                  <label>Variable {"{{" + v + "}}"}</label>
-                  <input 
-                    type="text" 
-                    placeholder={`Test value for {{${v}}}`}
-                    value={testVariables[v] || ""}
-                    onChange={(e) => {
-                      const textVal = e.target.value;
-                      setTestVariables(prev => ({
-                        ...prev,
-                        [v]: textVal
-                      }));
-                    }}
-                  />
-                </div>
-              ))}
 
               {testLog && (
                 <div className={styles.inputGroup}>
