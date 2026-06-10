@@ -51,6 +51,7 @@ type Campaign = {
   stopOnSpam: boolean;
   failureThreshold: number; // e.g. 15%
   consecutiveFailureThreshold: number; // e.g. 3
+  variableMappings?: Record<string, { type: "csv" | "default"; value: string; fallback?: string }>;
 };
 
 type CampaignRecipient = {
@@ -422,7 +423,8 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
           delaySeconds,
           stopOnSpam,
           failureThreshold,
-          consecutiveFailureThreshold
+          consecutiveFailureThreshold,
+          variableMappings
         });
         
         // Delete all old recipients from subcollection
@@ -452,7 +454,8 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
           delaySeconds,
           stopOnSpam,
           failureThreshold,
-          consecutiveFailureThreshold
+          consecutiveFailureThreshold,
+          variableMappings
         };
         await setDoc(campRef, campData);
       }
@@ -513,7 +516,9 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
     setRecipientSource("manual");
     
     // Load mappings
-    if (recipients.length > 0) {
+    if (activeCampaign.variableMappings) {
+      setVariableMappings(activeCampaign.variableMappings);
+    } else if (recipients.length > 0) {
       const firstRecVars = recipients[0].variables || {};
       const newMappings: Record<string, { type: "csv" | "default"; value: string; fallback?: string }> = {};
       Object.entries(firstRecVars).forEach(([v, val]) => {
