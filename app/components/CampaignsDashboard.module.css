@@ -447,7 +447,42 @@
   width: 50px;
 }
 
+.variableMappingControls {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  align-items: center;
+}
+
 .variableMapSelect {
+  width: 160px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #334155;
+  background-color: #0f172a;
+  color: #f8fafc;
+  font-size: 13px;
+  outline: none;
+}
+
+.variableMapInput {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #334155;
+  background-color: #0f172a;
+  color: #f8fafc;
+  font-size: 13px;
+  outline: none;
+}
+
+.variableMapInput:focus, .variableMapSelect:focus {
+  border-color: #00a884;
+}
+
+.csvMappingFields {
+  display: flex;
+  gap: 8px;
   flex: 1;
 }
 
@@ -897,4 +932,58 @@
   font-family: monospace;
   color: #64748b;
 }
+
+/* Template status filter tabs & badges */
+.templateFilterTabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #33415550;
+  padding-bottom: 8px;
+}
+
+.templateFilterTab {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 12px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.templateFilterTab:hover {
+  color: #cbd5e1;
+  background-color: #33415530;
+}
+
+.templateFilterTabActive {
+  background-color: #00a88415;
+  color: #34d399;
+  border: 1px solid #00a88430;
+}
+
+.templateStatusBadge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.templateStatusApproved {
+  background-color: rgba(52, 211, 153, 0.1);
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.2);
+}
+
+.templateStatusPending {
+  background-color: rgba(245, 158, 11, 0.1);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
 

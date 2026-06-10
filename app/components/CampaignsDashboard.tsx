@@ -132,6 +132,7 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
   const [showTemplateGridModal, setShowTemplateGridModal] = useState(false);
   const [templatesSearchQuery, setTemplatesSearchQuery] = useState("");
+  const [activeTemplateTab, setActiveTemplateTab] = useState<"approved" | "pending">("approved");
   const [recipientSource, setRecipientSource] = useState<"manual" | "csv">("manual");
   const [manualNumbers, setManualNumbers] = useState("");
   const [delaySeconds, setDelaySeconds] = useState(2);
@@ -143,7 +144,7 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
   const [csvRows, setCsvRows] = useState<Record<string, string>[]>([]);
   const [selectedPhoneColumn, setSelectedPhoneColumn] = useState("");
-  const [variableMappings, setVariableMappings] = useState<Record<string, { type: "csv" | "default"; value: string }>>({});
+  const [variableMappings, setVariableMappings] = useState<Record<string, { type: "csv" | "default"; value: string; fallback?: string }>>({});
   
   // Test Message popup state
   const [showTestModal, setShowTestModal] = useState(false);
@@ -240,18 +241,30 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
   }, [templateText]);
 
   const filteredTemplates = useMemo(() => {
-    return twilioTemplates.filter(t => 
-      (t.friendlyName || "").toLowerCase().includes(templatesSearchQuery.toLowerCase()) ||
-      (t.sid || "").toLowerCase().includes(templatesSearchQuery.toLowerCase()) ||
-      (t.body || "").toLowerCase().includes(templatesSearchQuery.toLowerCase())
-    );
-  }, [twilioTemplates, templatesSearchQuery]);
+    return twilioTemplates.filter(t => {
+      const statusMatch = activeTemplateTab === "approved"
+        ? (t.status || "approved") === "approved"
+        : (t.status || "approved") !== "approved";
+
+      if (!statusMatch) return false;
+
+      return (
+        (t.friendlyName || "").toLowerCase().includes(templatesSearchQuery.toLowerCase()) ||
+        (t.sid || "").toLowerCase().includes(templatesSearchQuery.toLowerCase()) ||
+        (t.body || "").toLowerCase().includes(templatesSearchQuery.toLowerCase())
+      );
+    });
+  }, [twilioTemplates, templatesSearchQuery, activeTemplateTab]);
 
   // Initialize variable mapping options when selected template changes
   useEffect(() => {
-    const initial: Record<string, { type: "csv" | "default"; value: string }> = {};
+    const initial: Record<string, { type: "csv" | "default"; value: string; fallback?: string }> = {};
     templateVariables.forEach(v => {
-      initial[v] = { type: "default", value: "" };
+      if (v === "1") {
+        initial[v] = { type: "csv", value: "name", fallback: "Miller" };
+      } else {
+        initial[v] = { type: "default", value: "" };
+      }
     });
     setVariableMappings(initial);
   }, [templateVariables]);
@@ -325,7 +338,12 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
         if (cleaned) {
           const vars: Record<string, string> = {};
           templateVariables.forEach(v => {
-            vars[v] = variableMappings[v]?.value || "";
+            const mapRule = variableMappings[v];
+            if (mapRule?.type === "csv") {
+              vars[v] = mapRule.fallback || "";
+            } else {
+              vars[v] = mapRule?.value || "";
+            }
           });
           rawRecipients.push({ phone: cleaned, variables: vars });
         }
@@ -342,7 +360,8 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
           templateVariables.forEach(v => {
             const mapRule = variableMappings[v];
             if (mapRule?.type === "csv") {
-              vars[v] = row[mapRule.value] || "";
+              const val = (row[mapRule.value] || "").trim();
+              vars[v] = val !== "" ? val : (mapRule.fallback || "");
             } else {
               vars[v] = mapRule?.value || "";
             }
@@ -894,66 +913,99 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
                 {templateVariables.length > 0 && (
                   <div className={styles.variableMappingCard}>
                     <h4>Template Variables Mapping</h4>
-                    {templateVariables.map((v) => (
-                      <div key={v} className={styles.variableMappingRow}>
-                        <span className={styles.variableLabel}>{"{{" + v + "}}"}</span>
-                        {recipientSource === "csv" && csvHeaders.length > 0 ? (
-                          <div style={{ display: 'flex', gap: '8px', flex: 1 }}>
+                    {templateVariables.map((v) => {
+                      const mapping = variableMappings[v] || { type: "default", value: "", fallback: "" };
+                      return (
+                        <div key={v} className={styles.variableMappingRow}>
+                          <span className={styles.variableLabel}>{"{{" + v + "}}"}</span>
+                          <div className={styles.variableMappingControls}>
                             <select
                               className={styles.variableMapSelect}
-                              value={variableMappings[v]?.type === "csv" ? variableMappings[v]?.value : "default"}
+                              value={mapping.type}
                               onChange={(e) => {
-                                const val = e.target.value;
-                                if (val === "default") {
-                                  setVariableMappings(prev => ({
-                                    ...prev,
-                                    [v]: { type: "default", value: "" }
-                                  }));
-                                } else {
-                                  setVariableMappings(prev => ({
-                                    ...prev,
-                                    [v]: { type: "csv", value: val }
-                                  }));
-                                }
+                                const type = e.target.value as "csv" | "default";
+                                setVariableMappings(prev => ({
+                                  ...prev,
+                                  [v]: { 
+                                    ...prev[v],
+                                    type, 
+                                    value: type === "csv" ? (prev[v]?.value || "name") : "" 
+                                  }
+                                }));
                               }}
                             >
-                              <option value="default">Use static default value...</option>
-                              {csvHeaders.map(h => (
-                                <option key={h} value={h}>CSV Column: {h}</option>
-                              ))}
+                              <option value="default">Static Text Value</option>
+                              <option value="csv">CSV Column Mapping</option>
                             </select>
-                            {variableMappings[v]?.type === "default" && (
+
+                            {mapping.type === "default" ? (
                               <input 
                                 type="text"
-                                style={{ flex: 1 }}
-                                placeholder="Static text value..."
-                                value={variableMappings[v]?.value || ""}
+                                className={styles.variableMapInput}
+                                placeholder={`Static value for {{${v}}}`}
+                                value={mapping.value || ""}
                                 onChange={(e) => {
                                   const textVal = e.target.value;
                                   setVariableMappings(prev => ({
                                     ...prev,
-                                    [v]: { type: "default", value: textVal }
+                                    [v]: { ...prev[v], type: "default", value: textVal }
                                   }));
                                 }}
                               />
+                            ) : (
+                              <div className={styles.csvMappingFields}>
+                                {csvHeaders.length > 0 ? (
+                                  <select
+                                    className={styles.variableMapSelect}
+                                    style={{ flex: 1, width: 'auto' }}
+                                    value={mapping.value}
+                                    onChange={(e) => {
+                                      const colVal = e.target.value;
+                                      setVariableMappings(prev => ({
+                                        ...prev,
+                                        [v]: { ...prev[v], type: "csv", value: colVal }
+                                      }));
+                                    }}
+                                  >
+                                    <option value="">-- Select Column --</option>
+                                    {csvHeaders.map(h => (
+                                      <option key={h} value={h}>{h}</option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <input 
+                                    type="text"
+                                    className={styles.variableMapInput}
+                                    placeholder="CSV Column Name (e.g. name)"
+                                    value={mapping.value || ""}
+                                    onChange={(e) => {
+                                      const colName = e.target.value;
+                                      setVariableMappings(prev => ({
+                                        ...prev,
+                                        [v]: { ...prev[v], type: "csv", value: colName }
+                                      }));
+                                    }}
+                                  />
+                                )}
+                                <input 
+                                  type="text"
+                                  className={styles.variableMapInput}
+                                  placeholder="Fallback value if blank (e.g. Miller)"
+                                  value={mapping.fallback || ""}
+                                  onChange={(e) => {
+                                    const fallbackVal = e.target.value;
+                                    setVariableMappings(prev => ({
+                                      ...prev,
+                                      [v]: { ...prev[v], fallback: fallbackVal }
+                                    }));
+                                  }}
+                                />
+                              </div>
                             )}
                           </div>
-                        ) : (
-                          <input 
-                            type="text" 
-                            placeholder={`Enter value for {{${v}}}`}
-                            value={variableMappings[v]?.value || ""}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setVariableMappings(prev => ({
-                                ...prev,
-                                [v]: { type: "default", value: val }
-                              }));
-                            }}
-                          />
-                        )}
-                      </div>
-                    ))}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 
@@ -1488,6 +1540,23 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
                 onChange={(e) => setTemplatesSearchQuery(e.target.value)}
               />
 
+              <div className={styles.templateFilterTabs}>
+                <button
+                  type="button"
+                  className={`${styles.templateFilterTab} ${activeTemplateTab === "approved" ? styles.templateFilterTabActive : ""}`}
+                  onClick={() => setActiveTemplateTab("approved")}
+                >
+                  Approved ({twilioTemplates.filter(t => (t.status || "approved") === "approved").length})
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.templateFilterTab} ${activeTemplateTab === "pending" ? styles.templateFilterTabActive : ""}`}
+                  onClick={() => setActiveTemplateTab("pending")}
+                >
+                  Under Review ({twilioTemplates.filter(t => (t.status || "approved") !== "approved").length})
+                </button>
+              </div>
+
               {isLoadingTemplates ? (
                 <div style={{ display: 'flex', justifyContent: 'center', padding: '40px', gap: '8px', alignItems: 'center' }}>
                   <div className={styles.spinner}></div>
@@ -1519,9 +1588,14 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
                       >
                         <div className={styles.templateGridItemHeader}>
                           <span className={styles.templateGridItemName}>{t.friendlyName}</span>
-                          <span className={styles.statusIndicator} style={{ backgroundColor: '#1e293b', color: '#cbd5e1' }}>
-                            {t.language}
-                          </span>
+                          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                            <span className={`${styles.templateStatusBadge} ${t.status === "pending" ? styles.templateStatusPending : styles.templateStatusApproved}`}>
+                              {t.status === "pending" ? "Under Review" : "Approved"}
+                            </span>
+                            <span className={styles.statusIndicator} style={{ backgroundColor: '#1e293b', color: '#cbd5e1' }}>
+                              {t.language}
+                            </span>
+                          </div>
                         </div>
                         <div className={styles.templateGridItemSid}>{t.sid}</div>
                         <div className={styles.templateGridItemBody}>{t.body}</div>

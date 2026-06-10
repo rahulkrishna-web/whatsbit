@@ -9,13 +9,22 @@ export async function GET() {
       sid: "HX68dfb84bba8143c63d42fb9d3a3a9af6",
       friendlyName: "RS Choyal Welcome",
       body: "Hello, Thank you for connecting with RS Choyal Group. Please let us know how we can assist you today?",
-      language: "en"
+      language: "en",
+      status: "approved"
     },
     {
       sid: "HX4fc87b16abefa2e835b5e0f881b76213",
       friendlyName: "webinar_invite_text",
       body: "Hi {{1}},\nYou're invited to an exclusive webinar by CHARGE, part of RS Choyal Group! 🎓\n\nTopic: {{2}}\n📅 Date: {{3}} ({{4}})\n🕒 Time: {{5}} IST\n🎙️ Speaker: {{6}} | {{7}}\n\nWhat you'll learn:\n✔️ {{8}}\n✔️ {{9}}\n✔️ {{10}}\nThis webinar is perfect for:\n✔️ {{11}}\n✔️ {{12}}\n✔️ {{13}}\n\nRegister now at {{14}}\n\nSpots are limited!",
-      language: "en"
+      language: "en",
+      status: "approved"
+    },
+    {
+      sid: "HX80131b9c07affee0a1404f655f587448",
+      friendlyName: "webmail_invite",
+      body: "Hi {{1}},\nYou have pending messages in your inbox. Please check the dashboard at {{2}}.",
+      language: "en",
+      status: "pending"
     }
   ];
 
@@ -62,18 +71,32 @@ export async function GET() {
         }
       }
 
+      let status = "approved";
+      if (item.approval_requests) {
+        status = item.approval_requests.status || "approved";
+      } else if (item.status) {
+        status = item.status;
+      }
+
       return {
         sid: item.sid,
         friendlyName: item.friendly_name || item.sid,
         body: bodyText,
-        language: item.language || "en"
+        language: item.language || "en",
+        status: status.toLowerCase()
       };
     });
 
     // Merge the custom webinar_invite_text into the fetched ones if it is not present in their Twilio account
     const hasWebinarInvite = parsedTemplates.some((t: any) => t.sid === "HX4fc87b16abefa2e835b5e0f881b76213");
     if (!hasWebinarInvite) {
-      parsedTemplates.unshift(mockTemplates[1]);
+      parsedTemplates.push(mockTemplates[1]);
+    }
+    
+    // Also merge the pending template if not fetched
+    const hasWebmailInvite = parsedTemplates.some((t: any) => t.sid === "HX80131b9c07affee0a1404f655f587448");
+    if (!hasWebmailInvite) {
+      parsedTemplates.push(mockTemplates[2]);
     }
 
     return NextResponse.json({
