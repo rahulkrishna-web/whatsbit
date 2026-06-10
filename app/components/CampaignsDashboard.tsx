@@ -240,6 +240,28 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
     return matches.sort((a, b) => parseInt(a) - parseInt(b));
   }, [templateText]);
 
+  const previewText = useMemo(() => {
+    if (!templateText) return "";
+    let text = templateText;
+    templateVariables.forEach(v => {
+      const mapping = variableMappings[v];
+      let replacement = `{{${v}}}`;
+      if (mapping) {
+        if (mapping.type === "default") {
+          replacement = mapping.value || `{{${v}}}`;
+        } else if (mapping.type === "csv") {
+          if (csvRows.length > 0 && mapping.value && csvRows[0][mapping.value]) {
+            replacement = csvRows[0][mapping.value];
+          } else {
+            replacement = mapping.fallback ? mapping.fallback : `[CSV: ${mapping.value || `Var${v}`}]`;
+          }
+        }
+      }
+      text = text.split(`{{${v}}}`).join(replacement);
+    });
+    return text;
+  }, [templateText, templateVariables, variableMappings, csvRows]);
+
   const filteredTemplates = useMemo(() => {
     return twilioTemplates.filter(t => {
       const statusMatch = activeTemplateTab === "approved"
@@ -1112,6 +1134,31 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
 
               {/* Form Sidebar Configuration */}
               <div className={styles.formSidebar}>
+                {/* Live Template Preview */}
+                {templateText && (
+                  <div className={styles.previewCard}>
+                    <h4>Message Preview</h4>
+                    <div className={styles.chatContainer}>
+                      <div className={styles.chatBubble}>
+                        {previewText}
+                        <span className={styles.bubbleTime}>
+                          {new Date().toLocaleTimeString("en-US", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            hour12: true,
+                          })}
+                          <span className={styles.doubleTick}>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M17 5L9.5 12.5L6 9" />
+                              <path d="M22 5L14.5 12.5" />
+                            </svg>
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className={styles.inputGroup}>
                   <label>Sending Throttling Delay</label>
                   <select 
