@@ -273,6 +273,7 @@ export async function POST(request: Request) {
         lastUpdated: serverTimestamp(),
         statusText: "WhatsApp • Online",
         unreadCount: increment(1),
+        isMarketing: false, // Reset marketing flag on incoming replies
       }, { merge: true });
     }
 

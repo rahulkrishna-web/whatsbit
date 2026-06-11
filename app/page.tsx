@@ -87,6 +87,7 @@ type Contact = {
   funnelStage?: string;
   isFavorite?: boolean;
   lastUpdated?: any;
+  isMarketing?: boolean;
 };
 
 const INITIAL_CONTACTS: Contact[] = [
@@ -1300,17 +1301,21 @@ export default function ChatApp() {
   };
 
   // Dynamic counts calculation
-  const allCount = sortedContacts.length;
-  const unprocessedCount = sortedContacts.filter(c => !c.labels || c.labels.length === 0).length;
-  const myCount = sortedContacts.filter(c => currentUser && c.responsibleId === currentUser.id).length;
-  const favoritesCount = sortedContacts.filter(c => c.isFavorite).length;
-  const channelsGroupsCount = sortedContacts.filter(c => c.id.includes("group")).length || 2;
+  // Dynamic counts calculation
+  const allCount = sortedContacts.filter(c => !c.isMarketing).length;
+  const unprocessedCount = sortedContacts.filter(c => !c.isMarketing && (!c.labels || c.labels.length === 0)).length;
+  const myCount = sortedContacts.filter(c => !c.isMarketing && currentUser && c.responsibleId === currentUser.id).length;
+  const favoritesCount = sortedContacts.filter(c => !c.isMarketing && c.isFavorite).length;
+  const channelsGroupsCount = sortedContacts.filter(c => !c.isMarketing && c.id.includes("group")).length || 2;
+  const marketingCount = sortedContacts.filter(c => c.isMarketing === true).length;
 
   const getLabelContactCount = (lblId: string, lblName: string) => {
     const nameLower = lblName.toLowerCase();
     return sortedContacts.filter(c => 
-      (c.labels && c.labels.includes(lblId)) || 
-      (c.label === nameLower)
+      !c.isMarketing && (
+        (c.labels && c.labels.includes(lblId)) || 
+        (c.label === nameLower)
+      )
     ).length;
   };
 
@@ -1408,6 +1413,14 @@ export default function ChatApp() {
       c.id.toLowerCase().includes(searchQuery.toLowerCase());
       
     if (!matchesSearch) return false;
+
+    if (activeMenuFilter === "marketing") {
+      return c.isMarketing === true;
+    }
+
+    if (c.isMarketing === true) {
+      return false;
+    }
 
     if (activeMenuFilter === "unprocessed") {
       return !c.labels || c.labels.length === 0;
@@ -1828,6 +1841,19 @@ export default function ChatApp() {
                 Favorites
               </span>
               {favoritesCount > 0 && <span className={styles.badge}>{favoritesCount}</span>}
+            </li>
+
+            <li 
+              onClick={() => setActiveMenuFilter("marketing")}
+              className={`${styles.crmMenuItem} ${activeMenuFilter === "marketing" ? styles.crmMenuItemActive : ""}`}
+            >
+              <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 19l7-2v-8l-7-2v12zM3 9h4v6H3zM7 11c1 0 2 1 2 2v2M21 13v-2"/>
+                </svg>
+                Marketing
+              </span>
+              {marketingCount > 0 && <span className={styles.badge}>{marketingCount}</span>}
             </li>
 
             <li 

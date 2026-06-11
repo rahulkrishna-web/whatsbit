@@ -52,6 +52,7 @@ type Campaign = {
   failureThreshold: number; // e.g. 15%
   consecutiveFailureThreshold: number; // e.g. 3
   variableMappings?: Record<string, { type: "csv" | "default"; value: string; fallback?: string }>;
+  isSimulated?: boolean;
 };
 
 type CampaignRecipient = {
@@ -424,7 +425,8 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
           stopOnSpam,
           failureThreshold,
           consecutiveFailureThreshold,
-          variableMappings
+          variableMappings,
+          isSimulated: simulationMode
         });
         
         // Delete all old recipients from subcollection
@@ -455,7 +457,8 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
           stopOnSpam,
           failureThreshold,
           consecutiveFailureThreshold,
-          variableMappings
+          variableMappings,
+          isSimulated: simulationMode
         };
         await setDoc(campRef, campData);
       }
@@ -571,192 +574,47 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
     }
   };
 
-  // Run queue processor loop in frontend
+  // Sync simulationMode state when activeCampaign changes
   useEffect(() => {
-    if (!activeCampaign || activeCampaign.status !== "running" || recipients.length === 0) return;
-
-    const pending = recipients.filter(r => r.status === "pending");
-    
-    // Check if campaign completed
-    if (pending.length === 0) {
-      const inFlight = recipients.filter(r => r.status === "sending");
-      if (inFlight.length === 0) {
-        updateDoc(doc(db, "campaigns", activeCampaign.id), {
-          status: "completed"
-        });
-      }
-      return;
+    if (activeCampaign) {
+      setSimulationMode(activeCampaign.isSimulated !== false);
     }
+  }, [activeCampaignId, activeCampaign]);
 
-    // Check consecutive failure spam protection
-    // Sort recipients by status changes if needed, but we can compute consecutive failures
-    const sentOrFailed = recipients.filter(r => r.status !== "pending" && r.status !== "sending");
-    // Get last 10 sorted by sent time (mock logic or we can just trace in-memory failures)
-    // To make it simple, let's track consecutive failures in memory or scan failures
-    // Let's check the failure threshold protection
-    const totalSent = activeCampaign.sentCount + activeCampaign.failedCount;
-    if (totalSent >= 10 && activeCampaign.stopOnSpam) {
-      const failureRate = (activeCampaign.failedCount / totalSent) * 100;
-      if (failureRate >= activeCampaign.failureThreshold) {
-        updateDoc(doc(db, "campaigns", activeCampaign.id), {
-          status: "paused"
-        });
-        alert(`Campaign auto-paused. Failure rate is at ${failureRate.toFixed(1)}%, exceeding threshold of ${activeCampaign.failureThreshold}%.`);
-        return;
-      }
-    }
+  // Listen to background worker status heartbeat
+  const [workerActive, setWorkerActive] = useState<boolean>(false);
+  const [workerLastActiveTs, setWorkerLastActiveTs] = useState<number | null>(null);
 
-    // Process the first pending recipient
-    const nextRecipient = pending[0];
-    let isCancelled = false;
-
-    const processRecipient = async () => {
-      // 1. Mark recipient as sending
-      const recDocRef = doc(db, "campaigns", activeCampaign.id, "recipients", nextRecipient.phone);
-      await updateDoc(recDocRef, { status: "sending" });
-
-      // 2. Wait for throttling delay
-      await new Promise(resolve => setTimeout(resolve, activeCampaign.delaySeconds * 1000));
-      if (isCancelled) return;
-
-      // 3. Send message
-      if (simulationMode) {
-        // Mock Send
-        const mockSid = `mock-sid-${Date.now()}`;
-        const timeString = new Date().toLocaleTimeString("en-US", {
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: true,
-        });
-
-        // 85% success, 15% fail
-        const isSuccessful = Math.random() > 0.15;
-
-        if (isSuccessful) {
-          // Success
-          await updateDoc(recDocRef, {
-            status: "sent",
-            twilioSid: mockSid,
-            sentAt: timeString
-          });
-          await updateDoc(doc(db, "campaigns", activeCampaign.id), {
-            sentCount: increment(1)
-          });
-
-          // Simulate incoming webhook updates for delivery/read status to demonstrate analytics!
-          setTimeout(async () => {
-            const deliveredTime = new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
-            await updateDoc(recDocRef, {
-              status: "delivered",
-              deliveredAt: deliveredTime
-            });
-            await updateDoc(doc(db, "campaigns", activeCampaign.id), {
-              sentCount: increment(-1),
-              deliveredCount: increment(1)
-            });
-
-            // 75% read rate
-            if (Math.random() > 0.25) {
-              setTimeout(async () => {
-                const readTime = new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
-                await updateDoc(recDocRef, {
-                  status: "read",
-                  readAt: readTime
-                });
-                await updateDoc(doc(db, "campaigns", activeCampaign.id), {
-                  deliveredCount: increment(-1),
-                  readCount: increment(1)
-                });
-              }, 2000);
-            }
-          }, 2000);
-
-        } else {
-          // Failure
-          const errorMsgs = [
-            { code: "63024", msg: "Twilio rate limit exceeded" },
-            { code: "63012", msg: "Message undeliverable - phone inactive" },
-            { code: "63015", msg: "WhatsApp subscription mismatch / user blocked" }
-          ];
-          const err = errorMsgs[Math.floor(Math.random() * errorMsgs.length)];
-
-          await updateDoc(recDocRef, {
-            status: "failed",
-            errorCode: err.code,
-            errorMessage: err.msg,
-            sentAt: timeString
-          });
-          await updateDoc(doc(db, "campaigns", activeCampaign.id), {
-            failedCount: increment(1)
-          });
+  useEffect(() => {
+    const workerRef = doc(db, "settings", "worker_status");
+    const unsub = onSnapshot(workerRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        const lastActive = data.lastActive;
+        if (lastActive) {
+          const ts = lastActive.toDate ? lastActive.toDate().getTime() : (lastActive.seconds ? lastActive.seconds * 1000 : Date.now());
+          setWorkerLastActiveTs(ts);
         }
+      }
+    }, (err) => {
+      console.error("Error listening to worker status:", err);
+    });
+    return () => unsub();
+  }, []);
 
+  useEffect(() => {
+    const checkHeartbeat = () => {
+      if (workerLastActiveTs) {
+        const diffSeconds = (Date.now() - workerLastActiveTs) / 1000;
+        setWorkerActive(diffSeconds < 15);
       } else {
-        // Real Twilio API Send
-        try {
-          const res = await fetch("/api/chat/send", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contactId: nextRecipient.phone,
-              text: activeCampaign.templateText,
-              useTemplate: true,
-              templateSid: activeCampaign.templateSid,
-              senderName: currentUser ? currentUser.name : "Campaign Manager",
-              contentVariables: nextRecipient.variables,
-              campaignId: activeCampaign.id
-            })
-          });
-
-          const result = await res.json();
-          const timeString = new Date().toLocaleTimeString("en-US", {
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: true,
-          });
-
-          if (result.success && result.sid) {
-            await updateDoc(recDocRef, {
-              status: "sent",
-              twilioSid: result.sid,
-              sentAt: timeString
-            });
-            await updateDoc(doc(db, "campaigns", activeCampaign.id), {
-              sentCount: increment(1)
-            });
-          } else {
-            await updateDoc(recDocRef, {
-              status: "failed",
-              errorCode: result.errorCode || "500",
-              errorMessage: result.error || "Failed to send message",
-              sentAt: timeString
-            });
-            await updateDoc(doc(db, "campaigns", activeCampaign.id), {
-              failedCount: increment(1)
-            });
-          }
-        } catch (err: any) {
-          const timeString = new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
-          await updateDoc(recDocRef, {
-            status: "failed",
-            errorCode: "500",
-            errorMessage: err.message || "Failed API request",
-            sentAt: timeString
-          });
-          await updateDoc(doc(db, "campaigns", activeCampaign.id), {
-            failedCount: increment(1)
-          });
-        }
+        setWorkerActive(false);
       }
     };
-
-    processRecipient();
-
-    return () => {
-      isCancelled = true;
-    };
-
-  }, [activeCampaign, recipients, simulationMode, currentUser]);
+    checkHeartbeat();
+    const intervalId = setInterval(checkHeartbeat, 5000);
+    return () => clearInterval(intervalId);
+  }, [workerLastActiveTs]);
 
   // Handle Send Test Message
   const handleOpenTestModal = () => {
@@ -1290,7 +1148,7 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
                       <input 
                         type="checkbox" 
                         checked={stopOnSpam} 
-                        onChange={(e) => setSimulationMode(prev => prev)} // dummy sync helper
+                        onChange={(e) => setStopOnSpam(e.target.checked)}
                       />
                       Auto-Pause Campaign
                     </label>
@@ -1356,10 +1214,44 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
               </div>
               
               <div className={styles.topBarActions}>
+                {/* Background Worker Heartbeat Status */}
+                <div 
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 12px',
+                    borderRadius: '20px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    backgroundColor: workerActive ? '#10b98115' : '#ef444415',
+                    color: workerActive ? '#10b981' : '#ef4444',
+                    border: `1px solid ${workerActive ? '#10b98130' : '#ef444430'}`
+                  }}
+                  title={workerActive ? "Background processing service is online and active." : "Background processing service is offline. Run 'npm run campaign-worker' to start it."}
+                >
+                  <span style={{ 
+                    width: '8px', 
+                    height: '8px', 
+                    borderRadius: '50%', 
+                    backgroundColor: workerActive ? '#10b981' : '#ef4444',
+                    display: 'inline-block'
+                  }} />
+                  {workerActive ? "Worker Active" : "Worker Offline"}
+                </div>
+
                 {/* Simulation Mode Selector */}
                 <div 
                   className={styles.simulationToggle}
-                  onClick={() => setSimulationMode(!simulationMode)}
+                  onClick={async () => {
+                    const newMode = !simulationMode;
+                    setSimulationMode(newMode);
+                    if (activeCampaign) {
+                      await updateDoc(doc(db, "campaigns", activeCampaign.id), {
+                        isSimulated: newMode
+                      });
+                    }
+                  }}
                   title="When active, runs high-fidelity message processing and webhook statuses simulation."
                   style={{ cursor: 'pointer' }}
                 >

@@ -167,7 +167,7 @@ export async function POST(request: Request) {
 
     // Update contacts list metadata to surface latest message preview
     const contactRef = doc(db, "contacts", contactId);
-    await setDoc(contactRef, {
+    const contactPayload: any = {
       id: contactId,
       name: contactId,
       preview: finalMsgText.length > 50 ? finalMsgText.substring(0, 47) + "..." : finalMsgText,
@@ -175,7 +175,11 @@ export async function POST(request: Request) {
       lastUpdated: serverTimestamp(),
       statusText: "WhatsApp • Online",
       unreadCount: 0,
-    }, { merge: true });
+    };
+    if (campaignId) {
+      contactPayload.isMarketing = true;
+    }
+    await setDoc(contactRef, contactPayload, { merge: true });
 
     return NextResponse.json(
       { 
