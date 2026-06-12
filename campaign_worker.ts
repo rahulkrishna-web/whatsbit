@@ -53,8 +53,12 @@ type CampaignRecipient = {
 
 // Clean phone number helper
 function cleanPhone(phone: string): string {
+  if (!phone) return "";
   let raw = phone.trim().replace(/^whatsapp:/, "");
   let cleaned = raw.replace(/[^\d+]/g, "");
+  
+  const digits = cleaned.replace(/\D/g, "");
+  if (digits.length < 5) return "";
   
   if (cleaned.startsWith("00")) {
     cleaned = "+" + cleaned.substring(2);
@@ -206,7 +210,7 @@ function simulateStatusCallbacks(campaignId: string, phone: string, twilioSid: s
 }
 
 // Single recipient processor
-async function processRecipient(campaign: Campaign, phone: string, recipient: CampaignRecipient) {
+async function processRecipient(campaign: Campaign, phone: string, recipient: CampaignRecipient): Promise<boolean> {
   const recDocRef = doc(db, "campaigns", campaign.id, "recipients", phone);
   
   await updateDoc(recDocRef, { status: "sending" });
@@ -240,6 +244,7 @@ async function processRecipient(campaign: Campaign, phone: string, recipient: Ca
       
       await writeChatMessage(phone, compiledText, mockSid, "sent", timeString);
       simulateStatusCallbacks(campaign.id, phone, mockSid);
+      return true;
     } else {
       const errorMsgs = [
         { code: "63024", msg: "Twilio rate limit exceeded" },
@@ -259,6 +264,7 @@ async function processRecipient(campaign: Campaign, phone: string, recipient: Ca
       });
       
       await writeChatMessage(phone, compiledText, `failed-${Date.now()}`, "failed", timeString, err.code, err.msg);
+      return false;
     }
   } else {
     // Real Twilio API Send
@@ -300,12 +306,13 @@ async function processRecipient(campaign: Campaign, phone: string, recipient: Ca
       });
       
       await writeChatMessage(phone, compiledText, message.sid, "sent", timeString);
+      return true;
     } catch (err: any) {
       console.error(`[Worker] Twilio send failed for ${phone}:`, err.message);
       
       await updateDoc(recDocRef, {
         status: "failed",
-        errorCode: "500",
+        errorCode: err.code === "63049" || err.errorCode === 63049 ? "63049" : "500",
         errorMessage: err.message || "Failed API request",
         sentAt: timeString
       });
@@ -313,7 +320,8 @@ async function processRecipient(campaign: Campaign, phone: string, recipient: Ca
         failedCount: increment(1)
       });
       
-      await writeChatMessage(phone, compiledText, `failed-${Date.now()}`, "failed", timeString, "500", err.message || "Failed API request");
+      await writeChatMessage(phone, compiledText, `failed-${Date.now()}`, "failed", timeString, err.code === "63049" || err.errorCode === 63049 ? "63049" : "500", err.message || "Failed API request");
+      return false;
     }
   }
 }
@@ -328,6 +336,9 @@ async function processCampaign(campaignId: string) {
   console.log(`[Worker] Started campaign loop for: ${campaignId}`);
   
   try {
+    let attemptsThisSession = 0;
+    let failuresThisSession = 0;
+    
     while (true) {
       const campRef = doc(db, "campaigns", campaignId);
       const campSnap = await getDoc(campRef);
@@ -343,14 +354,15 @@ async function processCampaign(campaignId: string) {
       }
       
       // Check for failure thresholds
-      const totalSent = campaign.sentCount + campaign.failedCount;
-      if (totalSent >= 10 && campaign.stopOnSpam) {
-        const failureRate = (campaign.failedCount / totalSent) * 100;
-        const limitPct = campaign.failureThreshold || 15;
-        if (failureRate >= limitPct) {
-          await updateDoc(campRef, { status: "paused" });
-          console.log(`[Worker] Campaign ${campaignId} auto-paused: failure rate is ${failureRate.toFixed(1)}% (Threshold: ${limitPct}%).`);
-          break;
+      if (campaign.stopOnSpam) {
+        if (attemptsThisSession >= 10) {
+          const failureRate = (failuresThisSession / attemptsThisSession) * 100;
+          const limitPct = campaign.failureThreshold || 15;
+          if (failureRate >= limitPct) {
+            await updateDoc(campRef, { status: "paused" });
+            console.log(`[Worker] Campaign ${campaignId} auto-paused: session failure rate is ${failureRate.toFixed(1)}% (Threshold: ${limitPct}%).`);
+            break;
+          }
         }
       }
       
@@ -376,7 +388,11 @@ async function processCampaign(campaignId: string) {
       const recipientPhone = recipientDoc.id;
       const recipientData = recipientDoc.data() as CampaignRecipient;
       
-      await processRecipient(campaign, recipientPhone, recipientData);
+      const success = await processRecipient(campaign, recipientPhone, recipientData);
+      attemptsThisSession++;
+      if (!success) {
+        failuresThisSession++;
+      }
       
       // Delay throttling
       const delayMs = (campaign.delaySeconds || 2) * 1000;

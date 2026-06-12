@@ -4,8 +4,12 @@ import { db } from "../../../../lib/firebase";
 import { doc, getDoc, setDoc, addDoc, collection, serverTimestamp } from "firebase/firestore";
 
 function cleanPhone(phone: string): string {
+  if (!phone) return "";
   let raw = phone.replace(/^whatsapp:/, "");
   let cleaned = raw.replace(/[^\d+]/g, "");
+  const digits = cleaned.replace(/\D/g, "");
+  if (digits.length < 5) return "";
+
   if (/^\d{10}$/.test(cleaned)) {
     cleaned = "+91" + cleaned;
   }

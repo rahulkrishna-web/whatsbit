@@ -77,8 +77,12 @@ const PREDEFINED_TEMPLATES = [
 ];
 
 function cleanPhone(phone: string): string {
+  if (!phone) return "";
   let raw = phone.trim().replace(/^whatsapp:/, "");
   let cleaned = raw.replace(/[^\d+]/g, "");
+  
+  const digits = cleaned.replace(/\D/g, "");
+  if (digits.length < 5) return "";
   
   if (cleaned.startsWith("00")) {
     cleaned = "+" + cleaned.substring(2);
