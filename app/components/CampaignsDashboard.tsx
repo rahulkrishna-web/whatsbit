@@ -317,6 +317,25 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
         rows.push(row);
       }
 
+      // Check for first and last name columns to combine
+      const fNamePatterns = ["first name", "first me", "first", "given name", "fname", "first_name", "first-name"];
+      const lNamePatterns = ["last name", "last me", "last", "family name", "surname", "lname", "last_name", "last-name"];
+      
+      const fNameHeader = headers.find(h => fNamePatterns.includes(h.toLowerCase()));
+      const lNameHeader = headers.find(h => lNamePatterns.includes(h.toLowerCase()));
+
+      if (fNameHeader && lNameHeader) {
+        const combinedHeader = "Full Name (First + Last)";
+        if (!headers.includes(combinedHeader)) {
+          headers.push(combinedHeader);
+        }
+        rows.forEach(row => {
+          const first = (row[fNameHeader] || "").trim();
+          const last = (row[lNameHeader] || "").trim();
+          row[combinedHeader] = `${first} ${last}`.trim();
+        });
+      }
+
       setCsvHeaders(headers);
       setCsvRows(rows);
 
@@ -331,7 +350,15 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
       // Guess matches for variable placeholders
       const updatedMap = { ...variableMappings };
       templateVariables.forEach(v => {
-        const matchingHeader = headers.find(h => h.toLowerCase() === `var${v}` || h.toLowerCase().includes(`variable${v}`));
+        let matchingHeader = headers.find(h => h.toLowerCase() === `var${v}` || h.toLowerCase().includes(`variable${v}`));
+        if (v === "1" && !matchingHeader) {
+          matchingHeader = headers.find(h => 
+            h === "Full Name (First + Last)" || 
+            h.toLowerCase() === "name" || 
+            h.toLowerCase() === "full name" ||
+            fNamePatterns.includes(h.toLowerCase())
+          );
+        }
         if (matchingHeader) {
           updatedMap[v] = { type: "csv", value: matchingHeader };
         } else {
