@@ -144,7 +144,7 @@ export async function POST(request: Request) {
     }
 
     // Write message to subcollection contacts/{contactId}/messages
-    const messagesRef = collection(db, "contacts", contactId, "messages");
+    const messagesRef = collection(db, "contacts", cleanContactId, "messages");
     await addDoc(messagesRef, {
       text: finalMsgText,
       isSent: true,
@@ -161,7 +161,7 @@ export async function POST(request: Request) {
       try {
         await setDoc(doc(db, "campaign_messages", twilioMessageSid), {
           campaignId,
-          phone: contactId,
+          phone: cleanContactId,
           timestamp: serverTimestamp()
         });
       } catch (e) {
@@ -170,10 +170,10 @@ export async function POST(request: Request) {
     }
 
     // Update contacts list metadata to surface latest message preview
-    const contactRef = doc(db, "contacts", contactId);
+    const contactRef = doc(db, "contacts", cleanContactId);
     const contactPayload: any = {
-      id: contactId,
-      name: contactId,
+      id: cleanContactId,
+      name: cleanContactId,
       preview: finalMsgText.length > 50 ? finalMsgText.substring(0, 47) + "..." : finalMsgText,
       time: timeString,
       lastUpdated: serverTimestamp(),
