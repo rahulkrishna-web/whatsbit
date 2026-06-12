@@ -99,7 +99,8 @@ async function writeChatMessage(
   status: "sent" | "failed",
   timeString: string,
   errorCode?: string,
-  errorMessage?: string
+  errorMessage?: string,
+  templateSid?: string
 ) {
   try {
     const msgData: any = {
@@ -113,6 +114,7 @@ async function writeChatMessage(
     };
     if (errorCode) msgData.errorCode = errorCode;
     if (errorMessage) msgData.errorMessage = errorMessage;
+    if (templateSid) msgData.templateSid = templateSid;
     
     await addDoc(collection(db, "contacts", phone, "messages"), msgData);
     
@@ -242,7 +244,7 @@ async function processRecipient(campaign: Campaign, phone: string, recipient: Ca
         sentCount: increment(1)
       });
       
-      await writeChatMessage(phone, compiledText, mockSid, "sent", timeString);
+      await writeChatMessage(phone, compiledText, mockSid, "sent", timeString, undefined, undefined, campaign.templateSid);
       simulateStatusCallbacks(campaign.id, phone, mockSid);
       return true;
     } else {
@@ -305,7 +307,7 @@ async function processRecipient(campaign: Campaign, phone: string, recipient: Ca
         timestamp: serverTimestamp()
       });
       
-      await writeChatMessage(phone, compiledText, message.sid, "sent", timeString);
+      await writeChatMessage(phone, compiledText, message.sid, "sent", timeString, undefined, undefined, campaign.templateSid);
       return true;
     } catch (err: any) {
       console.error(`[Worker] Twilio send failed for ${phone}:`, err.message);

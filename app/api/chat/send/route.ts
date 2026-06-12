@@ -155,6 +155,7 @@ export async function POST(request: Request) {
       senderName: senderName || null,
       mediaUrl: mediaUrl || null,
       mediaType: mediaType || null,
+      templateSid: useTemplate ? selectedTemplateSid : null,
     });
 
     if (campaignId && !errorMsg && twilioMessageSid) {

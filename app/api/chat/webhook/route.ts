@@ -15,6 +15,7 @@ import {
 } from "firebase/firestore";
 import { join } from "path";
 import { mkdir, writeFile } from "fs/promises";
+import twilio from "twilio";
 
 export async function POST(request: Request) {
   try {
@@ -275,6 +276,126 @@ export async function POST(request: Request) {
         unreadCount: increment(1),
         isMarketing: false, // Reset marketing flag on incoming replies
       }, { merge: true });
+
+      // Autoresponder flow for Wondermill template
+      const cleanedBody = body.trim().toLowerCase();
+      if (cleanedBody === "ok" || cleanedBody === "yes") {
+        try {
+          // Fetch last messages to see if Wondermill template was sent
+          const messagesSnap = await getDocs(messagesRef);
+          const sentMessages = messagesSnap.docs
+            .map((d) => ({ id: d.id, ...d.data() } as any))
+            .filter((m) => m.isSent === true && m.timestamp)
+            .sort((a, b) => {
+              const aSec = a.timestamp?.seconds || 0;
+              const bSec = b.timestamp?.seconds || 0;
+              return bSec - aSec;
+            });
+
+          const lastSentMessage = sentMessages[0];
+          if (lastSentMessage) {
+            const lastSentText = lastSentMessage.text || "";
+            const isWondermillTemplate = 
+              lastSentMessage.templateSid === "Hxd796d76e1249f498e8767897e53ee385" ||
+              (lastSentText.toLowerCase().includes("wondermill") && 
+               lastSentText.toLowerCase().includes("please reply with") &&
+               (lastSentText.toLowerCase().includes("ok") || lastSentText.toLowerCase().includes("yes")));
+
+            if (isWondermillTemplate) {
+              const accountSid = process.env.TWILIO_ACCOUNT_SID;
+              const authToken = process.env.TWILIO_AUTH_TOKEN;
+              const senderNumber = process.env.TWILIO_SENDER_NUMBER || "whatsapp:+918890211444";
+
+              if (accountSid && authToken) {
+                const client = twilio(accountSid, authToken);
+                const brochureUrl = "https://cdn.clyrix.com/drive/wondermill_brochure.pdf";
+                
+                console.log(`[Autoresponder] Sending brochure to ${fromPhone}`);
+                const mediaMessage = await client.messages.create({
+                  from: senderNumber,
+                  to: `whatsapp:${fromPhone}`,
+                  body: "Here is the Wondermill brochure you requested.",
+                  mediaUrl: [brochureUrl]
+                });
+
+                // Write the sent brochure to messages subcollection
+                const brochureTimeString = new Date().toLocaleTimeString("en-IN", {
+                  timeZone: tz,
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: true
+                });
+
+                await addDoc(messagesRef, {
+                  text: "Here is the Wondermill brochure you requested.",
+                  isSent: true,
+                  time: brochureTimeString,
+                  status: "sent",
+                  twilioSid: mediaMessage.sid,
+                  timestamp: serverTimestamp(),
+                  senderName: "Automation Bot",
+                  mediaUrl: brochureUrl,
+                  mediaType: "document"
+                });
+
+                // Update contact meta (reset unreadCount to 0 because we replied)
+                await setDoc(contactRef, {
+                  preview: "📄 Document: wondermill_brochure.pdf",
+                  time: brochureTimeString,
+                  lastUpdated: serverTimestamp(),
+                  unreadCount: 0
+                }, { merge: true });
+
+                // Also log a run for this flow in flow_runs
+                try {
+                  const runId = `wondermill_auto_${Date.now()}`;
+                  const contactSnap = await getDoc(contactRef);
+                  const contactName = contactSnap.exists() ? (contactSnap.data().name || fromPhone) : fromPhone;
+                  
+                  await setDoc(doc(db, "flow_runs", runId), {
+                    id: runId,
+                    flowId: "wondermill-autoresponder",
+                    recipientName: contactName,
+                    recipientPhone: fromPhone,
+                    status: "success",
+                    startedAt: new Date().toISOString(),
+                    completedAt: new Date().toISOString(),
+                    steps: [
+                      {
+                        nodeId: "node-1",
+                        nodeTitle: "Incoming WhatsApp Message",
+                        timestamp: new Date().toISOString(),
+                        status: "success",
+                        description: `Received "${body}" from client.`
+                      },
+                      {
+                        nodeId: "node-2",
+                        nodeTitle: "Check Template Response",
+                        timestamp: new Date().toISOString(),
+                        status: "success",
+                        description: "Verified response is 'ok'/'yes' to Wondermill template."
+                      },
+                      {
+                        nodeId: "node-3",
+                        nodeTitle: "Send Wondermill Brochure",
+                        timestamp: new Date().toISOString(),
+                        status: "success",
+                        description: "Brochure PDF sent successfully via Twilio."
+                      }
+                    ]
+                  });
+                } catch (runErr) {
+                  console.error("Failed to log flow run:", runErr);
+                }
+              } else {
+                console.warn("[Autoresponder] Twilio credentials not configured. Skipping brochure sending.");
+              }
+            }
+          }
+        } catch (autoErr) {
+          console.error("Error in Wondermill autoresponder:", autoErr);
+        }
+      }
     }
 
     // Return TwiML response to Twilio

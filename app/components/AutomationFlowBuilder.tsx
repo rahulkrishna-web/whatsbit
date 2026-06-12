@@ -291,10 +291,80 @@ const WEBINAR_INVITATION_NODES: FlowNode[] = [
   },
 ];
 
+// 5. Wondermill Brochure Autoresponder Flow Nodes
+const WONDERMILL_AUTO_RESPONDER_NODES: FlowNode[] = [
+  {
+    id: "node-1",
+    type: "trigger",
+    title: "Incoming WhatsApp Message",
+    subType: "incoming_message",
+    config: {},
+    nextNodeId: "node-2",
+  },
+  {
+    id: "node-2",
+    type: "condition",
+    title: "Check Template Response",
+    subType: "check_text_response",
+    config: {
+      text: "User responds with 'OK' or 'Yes' (case-insensitive) to Wondermill template.",
+    },
+    nextNodeId: "node-3",
+  },
+  {
+    id: "node-3",
+    type: "action",
+    title: "Send Wondermill Brochure",
+    subType: "send_media",
+    config: {
+      text: "Here is the Wondermill brochure you requested.",
+      mediaUrl: "https://cdn.clyrix.com/drive/wondermill_brochure.pdf",
+      mediaName: "wondermill_brochure.pdf",
+    },
+  },
+];
+
 // Mock Runs Seed Data Helper
 const createMockRunsForFlow = (flowId: string): FlowRun[] => {
   const now = new Date();
   const getPastISO = (minsAgo: number) => new Date(now.getTime() - minsAgo * 60 * 1000).toISOString();
+
+  if (flowId === "wondermill-autoresponder") {
+    return [
+      {
+        id: "run_wm_1",
+        flowId,
+        recipientName: "Vibhuti test 1",
+        recipientPhone: "+91 98877 66554",
+        status: "success",
+        startedAt: getPastISO(15),
+        completedAt: getPastISO(14),
+        steps: [
+          {
+            nodeId: "node-1",
+            nodeTitle: "Incoming WhatsApp Message",
+            timestamp: getPastISO(15),
+            status: "success",
+            description: "Received 'Ok' from client.",
+          },
+          {
+            nodeId: "node-2",
+            nodeTitle: "Check Template Response",
+            timestamp: getPastISO(15),
+            status: "success",
+            description: "Verified response is 'ok'/'yes' to Wondermill template.",
+          },
+          {
+            nodeId: "node-3",
+            nodeTitle: "Send Wondermill Brochure",
+            timestamp: getPastISO(14),
+            status: "success",
+            description: "Brochure PDF sent successfully via Twilio.",
+          },
+        ],
+      },
+    ];
+  }
 
   if (flowId === "whatsapp-lead-qualification") {
     return [
@@ -558,8 +628,15 @@ export default function AutomationFlowBuilder({ currentUser }: { currentUser: { 
       // Seed all default flows if database is empty
       if (items.length === 0) {
         seedAllDefaultFlows();
-      } else if (!activeFlowId && items.length > 0) {
-        setActiveFlowId(items[0].id);
+      } else {
+        // Ensure Wondermill Autoresponder is seeded if missing
+        const hasWondermill = items.some((f) => f.id === "wondermill-autoresponder");
+        if (!hasWondermill) {
+          seedWondermillFlow();
+        }
+        if (!activeFlowId && items.length > 0) {
+          setActiveFlowId(items[0].id);
+        }
       }
     });
 
@@ -624,6 +701,13 @@ export default function AutomationFlowBuilder({ currentUser }: { currentUser: { 
         isActive: false,
         nodes: WEBINAR_INVITATION_NODES,
       },
+      {
+        id: "wondermill-autoresponder",
+        name: "Wonder Mill Brochure Autoresponder",
+        description: "Auto-responds with the Wonder Mill brochure PDF when clients reply 'OK' or 'Yes' to the Wonder Mill template.",
+        isActive: true,
+        nodes: WONDERMILL_AUTO_RESPONDER_NODES,
+      },
     ];
 
     try {
@@ -640,6 +724,28 @@ export default function AutomationFlowBuilder({ currentUser }: { currentUser: { 
       setActiveFlowId(defaultFlows[0].id);
     } catch (e) {
       console.error("Failed to seed default flows:", e);
+    }
+  };
+
+  const seedWondermillFlow = async () => {
+    const flow: Flow = {
+      id: "wondermill-autoresponder",
+      name: "Wonder Mill Brochure Autoresponder",
+      description: "Auto-responds with the Wonder Mill brochure PDF when clients reply 'OK' or 'Yes' to the Wonder Mill template.",
+      isActive: true,
+      nodes: WONDERMILL_AUTO_RESPONDER_NODES,
+    };
+    try {
+      await setDoc(doc(db, "flows", flow.id), {
+        name: flow.name,
+        description: flow.description,
+        isActive: flow.isActive,
+        nodes: flow.nodes,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    } catch (e) {
+      console.error("Failed to seed Wondermill flow:", e);
     }
   };
 
@@ -1017,6 +1123,13 @@ export default function AutomationFlowBuilder({ currentUser }: { currentUser: { 
         `[DELAY]: Wait for ${node.config.delayDays || 1} days... (Simulating instant skip)`,
       ]);
       statusMsg = `Delay timer for ${node.config.delayDays} days scheduled and bypassed.`;
+    } else if (node.type === "condition") {
+      setSimulationLogs((prev) => [
+        ...prev,
+        `[CONDITION]: ${node.title}`,
+        `🔍 check: "${node.config.text}"`,
+      ]);
+      statusMsg = `Condition check passed: ${node.config.text}`;
     } else if (node.type === "action") {
       if (node.subType === "send_whatsapp") {
         setSimulationLogs((prev) => [
