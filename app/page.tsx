@@ -176,6 +176,9 @@ export default function ChatApp() {
   const [editLogoHeight, setEditLogoHeight] = useState(30);
 
   const [templates, setTemplates] = useState(PREDEFINED_TEMPLATES);
+  const [showNamePrompt, setShowNamePrompt] = useState(false);
+  const [promptTemplate, setPromptTemplate] = useState<{ name: string; text: string; templateSid: string } | null>(null);
+  const [promptedName, setPromptedName] = useState("");
 
   useEffect(() => {
     async function loadLiveTemplates() {
@@ -998,28 +1001,18 @@ export default function ChatApp() {
     setShowAssignPopup(false);
   };
 
-  const handleSendTemplate = async (template: { name: string; text: string; templateSid: string }) => {
+  const executeSendTemplate = async (template: { name: string; text: string; templateSid: string }, clientName: string) => {
     setIsSendingTemplate(true);
-    setShowTemplateDropdown(false);
-
-    // Find active contact's name
-    const activeContact = sortedContacts.find((c) => c.id === activeChatId) || contacts.find((c) => c.id === activeChatId);
-    let clientName = "Customer";
-    if (activeContact) {
-      const isPhone = /^\+?\d+$/.test(activeContact.name.replace(/\s+/g, ""));
-      clientName = isPhone ? "Customer" : activeContact.name;
-    }
-
     const contentVariables: Record<string, string> = {};
     let textWithVars = template.text;
 
     if (template.templateSid === "HX0f7cde84a9b825505fc6a3a608c2a3be") {
       const brochureUrl = "https://cdn.clyrix.com/drive/rscg_company_profile.pdf";
       contentVariables["1"] = brochureUrl;
-      textWithVars = textWithVars.replace("{{1}}", brochureUrl);
+      textWithVars = textWithVars.replace(/\{\{[^}]+\}\}/g, brochureUrl);
     } else {
       contentVariables["1"] = clientName;
-      textWithVars = textWithVars.replace("{{1}}", clientName);
+      textWithVars = textWithVars.replace(/\{\{[^}]+\}\}/g, clientName);
     }
 
     try {
@@ -1044,6 +1037,55 @@ export default function ChatApp() {
     } finally {
       setIsSendingTemplate(false);
     }
+  };
+
+  const handleConfirmName = async () => {
+    if (!promptTemplate || !promptedName.trim()) return;
+    const finalName = promptedName.trim();
+    setShowNamePrompt(false);
+
+    try {
+      const contactRef = doc(db, "contacts", activeChatId);
+      await updateDoc(contactRef, { name: finalName });
+      
+      // Update local contacts state immediately
+      setContacts((prevContacts) =>
+        prevContacts.map((c) => (c.id === activeChatId ? { ...c, name: finalName } : c))
+      );
+    } catch (e) {
+      console.error("Failed to update contact name in Firestore:", e);
+    }
+
+    await executeSendTemplate(promptTemplate, finalName);
+    setPromptTemplate(null);
+    setPromptedName("");
+  };
+
+  const handleSendTemplate = async (template: { name: string; text: string; templateSid: string }) => {
+    setIsSendingTemplate(true);
+    setShowTemplateDropdown(false);
+
+    // Find active contact's name
+    const activeContact = sortedContacts.find((c) => c.id === activeChatId) || contacts.find((c) => c.id === activeChatId);
+    let clientName = "Customer";
+    let isPhone = true;
+    if (activeContact) {
+      isPhone = /^\+?\d+$/.test(activeContact.name.replace(/\s+/g, ""));
+      clientName = isPhone ? "Customer" : activeContact.name;
+    }
+
+    const hasVariables = /\{\{[^}]+\}\}/.test(template.text);
+    const isBrochure = template.templateSid === "HX0f7cde84a9b825505fc6a3a608c2a3be";
+
+    if (hasVariables && !isBrochure && isPhone) {
+      setPromptTemplate(template);
+      setPromptedName("");
+      setShowNamePrompt(true);
+      setIsSendingTemplate(false);
+      return;
+    }
+
+    await executeSendTemplate(template, clientName);
   };
 
   const getMediaUrl = (url?: string) => {
@@ -2950,6 +2992,102 @@ export default function ChatApp() {
           )}
         </div>
       </div>
+
+      {/* Name Prompt Modal */}
+      {showNamePrompt && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "rgba(15, 23, 42, 0.6)",
+          backdropFilter: "blur(4px)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 9999,
+        }}>
+          <div style={{
+            backgroundColor: "#fff",
+            borderRadius: "16px",
+            width: "400px",
+            padding: "24px",
+            boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)",
+            display: "flex",
+            flexDirection: "column",
+            gap: "16px",
+          }}>
+            <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 600, color: "#0f172a" }}>
+              Enter Customer Details
+            </h3>
+            <p style={{ margin: 0, fontSize: "13px", color: "#64748b", lineHeight: 1.5 }}>
+              Template requires the customer name, but currently this chat is only identified by a phone number.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              <label style={{ fontSize: "12px", fontWeight: 600, color: "#475569" }}>
+                Customer Name
+              </label>
+              <input
+                type="text"
+                value={promptedName}
+                onChange={(e) => setPromptedName(e.target.value)}
+                placeholder="e.g. John Doe"
+                autoFocus
+                style={{
+                  padding: "10px 12px",
+                  borderRadius: "8px",
+                  border: "1px solid #cbd5e1",
+                  fontSize: "14px",
+                  outline: "none",
+                  width: "100%",
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    handleConfirmName();
+                  }
+                }}
+              />
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "8px" }}>
+              <button
+                onClick={() => {
+                  setShowNamePrompt(false);
+                  setPromptTemplate(null);
+                  setPromptedName("");
+                }}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: "8px",
+                  border: "1px solid #e2e8f0",
+                  backgroundColor: "transparent",
+                  color: "#64748b",
+                  fontSize: "13px",
+                  fontWeight: 500,
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmName}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: "8px",
+                  border: "none",
+                  backgroundColor: "#00a884",
+                  color: "#fff",
+                  fontSize: "13px",
+                  fontWeight: 500,
+                  cursor: "pointer",
+                }}
+              >
+                Send Template
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Lightbox / Image Modal Popup */}
       {activeLightboxImage && (
