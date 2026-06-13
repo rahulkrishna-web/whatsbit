@@ -41,7 +41,7 @@ export async function GET() {
       status: "approved"
     },
     {
-      sid: "HX2fd7981c6f7f4c0076b05ee4b5f66c67",
+      sid: "HX2fd7981c6f7f4e0076b05ee4b5f66c67",
       friendlyName: "choyal_turnkey_plant_response",
       body: "Great! Expansion is something we handle regularly. Whether you're scaling up your current capacity or adding new product lines, we have the right solutions.\n\nA few quick questions:\n✓ Current capacity?\n✓ Target expanded capacity?\n✓ Timeline for the expansion?\n✓ Product that you mill?",
       language: "en",
@@ -62,7 +62,7 @@ export async function GET() {
       status: "approved"
     },
     {
-      sid: "HX0f7cdc84a9b825505fc6a3a608c2a3bc",
+      sid: "HX0f7cde84a9b825505fc6a3a608c2a3be",
       friendlyName: "company_brochure",
       body: "Thank you for your interest in RS Choyal Group!\n\nHere's our company brochure with detailed specifications\n📄 {{1}}\n\nAlso check out these quick videos to see our work:\n\n🎥 Company Overview: https://www.youtube.com/watch?v=DlEcmcDS598\n\n🎥 How We Setup Plants: https://www.youtube.com/watch?v=OETierqPRFA\n\n🎥 Milling Plant Process (Hindi): https://www.youtube.com/watch?v=MjUnwkiwAvM",
       language: "en",

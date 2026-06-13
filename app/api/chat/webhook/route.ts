@@ -449,10 +449,10 @@ export async function POST(request: Request) {
                 choiceLabel = "Setup New Plant";
                 inquiryNodeId = "node-3a";
                 brochureNodeId = "node-4a";
-                responseTemplateSid = "HX2fd7981c6f7f4c0076b05ee4b5f66c67";
+                responseTemplateSid = "HX2fd7981c6f7f4e0076b05ee4b5f66c67";
                 responseTemplateText = "Great! Expansion is something we handle regularly. Whether you're scaling up your current capacity or adding new product lines, we have the right solutions.\n\nA few quick questions:\n✓ Current capacity?\n✓ Target expanded capacity?\n✓ Timeline for the expansion?\n✓ Product that you mill?";
                 
-                brochureTemplateSid = "HX0f7cdc84a9b825505fc6a3a608c2a3bc";
+                brochureTemplateSid = "HX0f7cde84a9b825505fc6a3a608c2a3be";
                 brochureText = "Thank you for your interest in RS Choyal Group!\n\nHere's our company brochure with detailed specifications\n📄 https://cdn.clyrix.com/drive/rscg_company_profile.pdf\n\nAlso check out these quick videos to see our work:\n\n🎥 Company Overview: https://www.youtube.com/watch?v=DlEcmcDS598\n\n🎥 How We Setup Plants: https://www.youtube.com/watch?v=OETierqPRFA\n\n🎥 Milling Plant Process (Hindi): https://www.youtube.com/watch?v=MjUnwkiwAvM";
                 brochureUrl = "https://cdn.clyrix.com/drive/rscg_company_profile.pdf";
                 brochureName = "rscg_company_profile.pdf";
