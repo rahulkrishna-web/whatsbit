@@ -435,6 +435,7 @@ export async function POST(request: Request) {
 
               let responseTemplateSid = "";
               let responseTemplateText = "";
+              let brochureTemplateSid = "";
               let brochureText = "";
               let brochureUrl = "";
               let brochureName = "";
@@ -448,9 +449,11 @@ export async function POST(request: Request) {
                 brochureNodeId = "node-4a";
                 responseTemplateSid = "HXcd74bac32850c134356bdfb56915be1c";
                 responseTemplateText = "Perfect! Setting up a turnkey plant is our specialty. We design and deliver complete milling solutions from 2 TPD to 2000 TPD based on your capacity needs.\n\nTo give you an accurate proposal, we need a few quick details:\n✓ What capacity are you targeting? (TPD)\n✓ What flour type? (Wheat, Pulses, Others)\n✓ What's your budget?\n\nOur technical team will prepare a customized plan for you.";
-                brochureText = "Here's our company brochure with detailed specifications.\n\nAlso check out these quick videos to see our work:\n🎥 Company Overview: https://www.youtube.com/watch?v=DlEcmcDS598\n🎥 How We Setup Plants: https://www.youtube.com/watch?v=OETierqPRFA\n🎥 Milling Plant Process (Hindi): https://www.youtube.com/watch?v=MjUnwkiwAvM";
-                brochureUrl = "https://whatsbit.vercel.app/RS_Choyal_Company_Brochure.pdf";
-                brochureName = "RS_Choyal_Company_Brochure.pdf";
+                
+                brochureTemplateSid = "HX0f7cdc84a9b825505fc6a3a608c2a3bc";
+                brochureText = "Thank you for your interest in RS Choyal Group!\n\nHere's our company brochure with detailed specifications\n📄 https://cdn.clyrix.com/drive/rscg_company_profile.pdf\n\nAlso check out these quick videos to see our work:\n\n🎥 Company Overview: https://www.youtube.com/watch?v=DlEcmcDS598\n\n🎥 How We Setup Plants: https://www.youtube.com/watch?v=OETierqPRFA\n\n🎥 Milling Plant Process (Hindi): https://www.youtube.com/watch?v=MjUnwkiwAvM";
+                brochureUrl = "https://cdn.clyrix.com/drive/rscg_company_profile.pdf";
+                brochureName = "rscg_company_profile.pdf";
               } else if (isPlantExpansion) {
                 choiceLabel = "Plant Expansion";
                 inquiryNodeId = "node-3b";
@@ -458,8 +461,8 @@ export async function POST(request: Request) {
                 responseTemplateSid = "HX2fd7981c6f7f4c0076b05cc4b5f66c67";
                 responseTemplateText = "Great! Expansion is something we handle regularly. Whether you're scaling up your current capacity or adding new product lines, we have the right solutions.\n\nA few quick questions:\n✓ Current capacity?\n✓ Target expanded capacity?\n✓ Timeline for the expansion?\n✓ Product that you mill?";
                 brochureText = "Here's our brochure and video overviews for expanding existing plants:\n🎥 Process Overview: https://www.youtube.com/watch?v=DlEcmcDS598\n🎥 Company Overview: https://www.youtube.com/watch?v=DlEcmcDS598";
-                brochureUrl = "https://whatsbit.vercel.app/RS_Choyal_Company_Brochure.pdf";
-                brochureName = "RS_Choyal_Company_Brochure.pdf";
+                brochureUrl = "https://cdn.clyrix.com/drive/rscg_company_profile.pdf";
+                brochureName = "rscg_company_profile.pdf";
               } else {
                 choiceLabel = "Spares & Stones";
                 inquiryNodeId = "node-3c";
@@ -500,12 +503,24 @@ export async function POST(request: Request) {
               setTimeout(async () => {
                 try {
                   console.log(`[Lead Qualification Autoresponder] Sending brochure ${brochureUrl} to ${fromPhone}`);
-                  const mediaMessage = await client.messages.create({
-                    from: senderNumber,
-                    to: `whatsapp:${fromPhone}`,
-                    body: brochureText,
-                    mediaUrl: [brochureUrl]
-                  });
+                  let mediaMessage;
+                  if (brochureTemplateSid) {
+                    mediaMessage = await client.messages.create({
+                      from: senderNumber,
+                      to: `whatsapp:${fromPhone}`,
+                      contentSid: brochureTemplateSid,
+                      contentVariables: JSON.stringify({
+                        "1": brochureUrl
+                      })
+                    });
+                  } else {
+                    mediaMessage = await client.messages.create({
+                      from: senderNumber,
+                      to: `whatsapp:${fromPhone}`,
+                      body: brochureText,
+                      mediaUrl: [brochureUrl]
+                    });
+                  }
 
                   const brochureTimeString = new Date().toLocaleTimeString("en-IN", {
                     timeZone: tz,
@@ -523,7 +538,8 @@ export async function POST(request: Request) {
                     timestamp: serverTimestamp(),
                     senderName: "Automation Bot",
                     mediaUrl: brochureUrl,
-                    mediaType: "document"
+                    mediaType: "document",
+                    templateSid: brochureTemplateSid || null
                   });
 
                   // Update contact preview

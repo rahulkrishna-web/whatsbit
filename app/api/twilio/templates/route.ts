@@ -53,6 +53,13 @@ export async function GET() {
       body: "Perfect! We supply high-quality grinding stones and spare parts for ongoing maintenance and optimization.\n\nQuick info needed:\n✓ Which equipment/machine? (make/model)\n✓ Grinding stones, bearings, or other spares?\n✓ How soon do you need them?",
       language: "en",
       status: "approved"
+    },
+    {
+      sid: "HX0f7cdc84a9b825505fc6a3a608c2a3bc",
+      friendlyName: "Send Plant Brochure",
+      body: "Thank you for your interest in RS Choyal Group!\n\nHere's our company brochure with detailed specifications\n📄 {{1}}\n\nAlso check out these quick videos to see our work:\n\n🎥 Company Overview: https://www.youtube.com/watch?v=DlEcmcDS598\n\n🎥 How We Setup Plants: https://www.youtube.com/watch?v=OETierqPRFA\n\n🎥 Milling Plant Process (Hindi): https://www.youtube.com/watch?v=MjUnwkiwAvM",
+      language: "en",
+      status: "approved"
     }
   ];
 
