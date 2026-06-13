@@ -396,6 +396,219 @@ export async function POST(request: Request) {
           console.error("Error in Wondermill autoresponder:", autoErr);
         }
       }
+
+      // Autoresponder flow for Lead Qualification template
+      const lowerBody = body.trim().toLowerCase();
+      const isSetupPlant = lowerBody === "setup new plant" || lowerBody === "setup_new_plant" || lowerBody.includes("setup new plant") || lowerBody.includes("looking to setup a new plant");
+      const isPlantExpansion = lowerBody === "plant expansion" || lowerBody === "plant_expansion" || lowerBody.includes("plant expansion") || lowerBody.includes("need help with expansion");
+      const isSparesStones = lowerBody === "spares & stones" || lowerBody === "spares_and_stones" || lowerBody.includes("spares & stones") || lowerBody.includes("spares and stones") || lowerBody.includes("spares") || lowerBody.includes("stones");
+
+      if (isSetupPlant || isPlantExpansion || isSparesStones) {
+        try {
+          // Fetch last messages to see if Welcome template was sent
+          const messagesSnap = await getDocs(messagesRef);
+          const sentMessages = messagesSnap.docs
+            .map((d) => ({ id: d.id, ...d.data() } as any))
+            .filter((m) => m.isSent === true && m.timestamp)
+            .sort((a, b) => {
+              const aSec = a.timestamp?.seconds || 0;
+              const bSec = b.timestamp?.seconds || 0;
+              return bSec - aSec;
+            });
+
+          const lastSentMessage = sentMessages[0];
+          // Auto-respond if the last sent message was the welcome template or contained flour milling solutions
+          const isWelcomeTemplate = lastSentMessage && (
+            lastSentMessage.templateSid === "HX46c6463c02f78669aac9d83c160f0ab" ||
+            (lastSentMessage.text && 
+             lastSentMessage.text.toLowerCase().includes("flour milling solutions") && 
+             lastSentMessage.text.toLowerCase().includes("what brings you here"))
+          );
+
+          if (isWelcomeTemplate) {
+            const accountSid = process.env.TWILIO_ACCOUNT_SID;
+            const authToken = process.env.TWILIO_AUTH_TOKEN;
+            const senderNumber = process.env.TWILIO_SENDER_NUMBER || "whatsapp:+918890211444";
+
+            if (accountSid && authToken) {
+              const client = twilio(accountSid, authToken);
+
+              let responseTemplateSid = "";
+              let responseTemplateText = "";
+              let brochureText = "";
+              let brochureUrl = "";
+              let brochureName = "";
+              let choiceLabel = "";
+              let inquiryNodeId = "";
+              let brochureNodeId = "";
+
+              if (isSetupPlant) {
+                choiceLabel = "Setup New Plant";
+                inquiryNodeId = "node-3a";
+                brochureNodeId = "node-4a";
+                responseTemplateSid = "HXcd74bac32850c134356bdfb56915be1c";
+                responseTemplateText = "Perfect! Setting up a turnkey plant is our specialty. We design and deliver complete milling solutions from 2 TPD to 2000 TPD based on your capacity needs.\n\nTo give you an accurate proposal, we need a few quick details:\n✓ What capacity are you targeting? (TPD)\n✓ What flour type? (Wheat, Pulses, Others)\n✓ What's your budget?\n\nOur technical team will prepare a customized plan for you.";
+                brochureText = "Here's our company brochure with detailed specifications.\n\nAlso check out these quick videos to see our work:\n🎥 Company Overview: https://www.youtube.com/watch?v=DlEcmcDS598\n🎥 How We Setup Plants: https://www.youtube.com/watch?v=OETierqPRFA\n🎥 Milling Plant Process (Hindi): https://www.youtube.com/watch?v=MjUnwkiwAvM";
+                brochureUrl = "https://whatsbit.vercel.app/RS_Choyal_Company_Brochure.pdf";
+                brochureName = "RS_Choyal_Company_Brochure.pdf";
+              } else if (isPlantExpansion) {
+                choiceLabel = "Plant Expansion";
+                inquiryNodeId = "node-3b";
+                brochureNodeId = "node-4b";
+                responseTemplateSid = "HX2fd7981c6f7f4c0076b05cc4b5f66c67";
+                responseTemplateText = "Great! Expansion is something we handle regularly. Whether you're scaling up your current capacity or adding new product lines, we have the right solutions.\n\nA few quick questions:\n✓ Current capacity?\n✓ Target expanded capacity?\n✓ Timeline for the expansion?\n✓ Product that you mill?";
+                brochureText = "Here's our brochure and video overviews for expanding existing plants:\n🎥 Process Overview: https://www.youtube.com/watch?v=DlEcmcDS598\n🎥 Company Overview: https://www.youtube.com/watch?v=DlEcmcDS598";
+                brochureUrl = "https://whatsbit.vercel.app/RS_Choyal_Company_Brochure.pdf";
+                brochureName = "RS_Choyal_Company_Brochure.pdf";
+              } else {
+                choiceLabel = "Spares & Stones";
+                inquiryNodeId = "node-3c";
+                brochureNodeId = "node-4c";
+                responseTemplateSid = "HXa5d6ceac6207c14c348c4d8c89b7adc0";
+                responseTemplateText = "Perfect! We supply high-quality grinding stones and spare parts for ongoing maintenance and optimization.\n\nQuick info needed:\n✓ Which equipment/machine? (make/model)\n✓ Grinding stones, bearings, or other spares?\n✓ How soon do you need them?";
+                brochureText = "Please find attached our stones & spares components specifications document for Choyal mills.";
+                brochureUrl = "https://whatsbit.vercel.app/RS_Choyal_Stones_Catalogue.pdf";
+                brochureName = "RS_Choyal_Stones_Catalogue.pdf";
+              }
+
+              console.log(`[Lead Qualification Autoresponder] Sending template ${responseTemplateSid} to ${fromPhone}`);
+              const inquiryMessage = await client.messages.create({
+                from: senderNumber,
+                to: `whatsapp:${fromPhone}`,
+                contentSid: responseTemplateSid
+              });
+
+              const inquiryTimeString = new Date().toLocaleTimeString("en-IN", {
+                timeZone: tz,
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: true
+              });
+
+              await addDoc(messagesRef, {
+                text: responseTemplateText,
+                isSent: true,
+                time: inquiryTimeString,
+                status: "sent",
+                twilioSid: inquiryMessage.sid,
+                timestamp: serverTimestamp(),
+                senderName: "Automation Bot",
+                templateSid: responseTemplateSid
+              });
+
+              // Send brochure/catalogue after 2 seconds
+              setTimeout(async () => {
+                try {
+                  console.log(`[Lead Qualification Autoresponder] Sending brochure ${brochureUrl} to ${fromPhone}`);
+                  const mediaMessage = await client.messages.create({
+                    from: senderNumber,
+                    to: `whatsapp:${fromPhone}`,
+                    body: brochureText,
+                    mediaUrl: [brochureUrl]
+                  });
+
+                  const brochureTimeString = new Date().toLocaleTimeString("en-IN", {
+                    timeZone: tz,
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    hour12: true
+                  });
+
+                  await addDoc(messagesRef, {
+                    text: brochureText,
+                    isSent: true,
+                    time: brochureTimeString,
+                    status: "sent",
+                    twilioSid: mediaMessage.sid,
+                    timestamp: serverTimestamp(),
+                    senderName: "Automation Bot",
+                    mediaUrl: brochureUrl,
+                    mediaType: "document"
+                  });
+
+                  // Update contact preview
+                  await setDoc(contactRef, {
+                    preview: `📄 Document: ${brochureName}`,
+                    time: brochureTimeString,
+                    lastUpdated: serverTimestamp(),
+                    unreadCount: 0
+                  }, { merge: true });
+
+                } catch (mediaErr) {
+                  console.error("Error sending brochure in lead qual webhook:", mediaErr);
+                }
+              }, 2000);
+
+              // Update contact preview with response template text
+              await setDoc(contactRef, {
+                preview: responseTemplateText.substring(0, 47) + "...",
+                time: inquiryTimeString,
+                lastUpdated: serverTimestamp(),
+                unreadCount: 0
+              }, { merge: true });
+
+              // Log a run in flow_runs
+              try {
+                const runId = `lq_auto_${Date.now()}`;
+                const contactSnap = await getDoc(contactRef);
+                const contactName = contactSnap.exists() ? (contactSnap.data().name || fromPhone) : fromPhone;
+
+                await setDoc(doc(db, "flow_runs", runId), {
+                  id: runId,
+                  flowId: "whatsapp-lead-qualification",
+                  recipientName: contactName,
+                  recipientPhone: fromPhone,
+                  status: "paused",
+                  startedAt: new Date().toISOString(),
+                  steps: [
+                    {
+                      nodeId: "node-1",
+                      nodeTitle: "Bitrix Lead Created",
+                      timestamp: new Date().toISOString(),
+                      status: "success",
+                      description: `Triggered from WhatsApp response: "${body}".`
+                    },
+                    {
+                      nodeId: "node-2",
+                      nodeTitle: "Initial Lead Notification",
+                      timestamp: new Date().toISOString(),
+                      status: "success",
+                      description: `Clicked option: "${choiceLabel}".`
+                    },
+                    {
+                      nodeId: inquiryNodeId,
+                      nodeTitle: isSetupPlant ? "Turnkey Plant Inquiry Response" : isPlantExpansion ? "Plant Expansion Inquiry Response" : "Spares & Stones Inquiry Response",
+                      timestamp: new Date().toISOString(),
+                      status: "success",
+                      description: `Sent inquiry response template ${responseTemplateSid}.`
+                    },
+                    {
+                      nodeId: brochureNodeId,
+                      nodeTitle: isSetupPlant ? "Send Plant Brochure" : isPlantExpansion ? "Send Expansion Details & Brochure" : "Send Spares Catalogue",
+                      timestamp: new Date(Date.now() + 2000).toISOString(),
+                      status: "success",
+                      description: `Sent ${brochureName} successfully.`
+                    },
+                    {
+                      nodeId: isSetupPlant ? "node-5a" : isPlantExpansion ? "node-5b" : "node-5c",
+                      nodeTitle: "Wait 4 Days",
+                      timestamp: new Date(Date.now() + 2000).toISOString(),
+                      status: "pending",
+                      description: "Waiting for delay timer (4 days) to send follow-up."
+                    }
+                  ]
+                });
+              } catch (runErr) {
+                console.error("Failed to log flow run:", runErr);
+              }
+            } else {
+              console.warn("[Lead Qualification Autoresponder] Twilio credentials not configured. Skipping automated messages.");
+            }
+          }
+        } catch (autoErr) {
+          console.error("Error in Lead Qualification autoresponder:", autoErr);
+        }
+      }
     }
 
     // Return TwiML response to Twilio

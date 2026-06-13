@@ -123,6 +123,12 @@ const PREDEFINED_TEMPLATES = [
     name: "RS Choyal Welcome",
     text: "Hello, Thank you for connecting with RS Choyal Group. Please let us know how we can assist you today?",
     templateSid: "HX68dfb84bba8143c63d42fb9d3a3a9af6",
+  },
+  {
+    id: "lead_qualification_welcome",
+    name: "Lead Qualification Welcome",
+    text: "Hi {{1}}.\n\nThank you for your interest in flour milling solutions! 👋\n\nRS Choyal Group is a turnkey milling solutions provider with 60+ years of experience and 275+ successful projects across the globe.\n\nWhat brings you here?",
+    templateSid: "HX46c6463c02f78669aac9d83c160f0ab",
   }
 ];
 
@@ -938,15 +944,31 @@ export default function ChatApp() {
   const handleSendTemplate = async (template: { name: string; text: string; templateSid: string }) => {
     setIsSendingTemplate(true);
     setShowTemplateDropdown(false);
+
+    // Find active contact's name
+    const activeContact = sortedContacts.find((c) => c.id === activeChatId) || contacts.find((c) => c.id === activeChatId);
+    let clientName = "Customer";
+    if (activeContact) {
+      const isPhone = /^\+?\d+$/.test(activeContact.name.replace(/\s+/g, ""));
+      clientName = isPhone ? "Customer" : activeContact.name;
+    }
+
+    const contentVariables: Record<string, string> = {
+      "1": clientName
+    };
+
+    const textWithVars = template.text.replace("{{1}}", clientName);
+
     try {
       const response = await fetch("/api/chat/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contactId: activeChatId,
-          text: template.text,
+          text: textWithVars,
           useTemplate: true,
           templateSid: template.templateSid,
+          contentVariables,
           senderName: currentUser ? currentUser.name : "Staff",
         }),
       });

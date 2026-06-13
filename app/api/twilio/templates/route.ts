@@ -25,6 +25,34 @@ export async function GET() {
       body: "Hi {{1}},\nYou have pending messages in your inbox. Please check the dashboard at {{2}}.",
       language: "en",
       status: "pending"
+    },
+    {
+      sid: "HX46c6463c02f78669aac9d83c160f0ab",
+      friendlyName: "Lead Qualification Welcome",
+      body: "Hi {{1}}.\n\nThank you for your interest in flour milling solutions! 👋\n\nRS Choyal Group is a turnkey milling solutions provider with 60+ years of experience and 275+ successful projects across the globe.\n\nWhat brings you here?",
+      language: "en",
+      status: "approved"
+    },
+    {
+      sid: "HXcd74bac32850c134356bdfb56915be1c",
+      friendlyName: "Turnkey Plant Response",
+      body: "Perfect! Setting up a turnkey plant is our specialty. We design and deliver complete milling solutions from 2 TPD to 2000 TPD based on your capacity needs.\n\nTo give you an accurate proposal, we need a few quick details:\n✓ What capacity are you targeting? (TPD)\n✓ What flour type? (Wheat, Pulses, Others)\n✓ What's your budget?\n\nOur technical team will prepare a customized plan for you.",
+      language: "en",
+      status: "approved"
+    },
+    {
+      sid: "HX2fd7981c6f7f4c0076b05cc4b5f66c67",
+      friendlyName: "Plant Expansion Response",
+      body: "Great! Expansion is something we handle regularly. Whether you're scaling up your current capacity or adding new product lines, we have the right solutions.\n\nA few quick questions:\n✓ Current capacity?\n✓ Target expanded capacity?\n✓ Timeline for the expansion?\n✓ Product that you mill?",
+      language: "en",
+      status: "approved"
+    },
+    {
+      sid: "HXa5d6ceac6207c14c348c4d8c89b7adc0",
+      friendlyName: "Spares & Stones Response",
+      body: "Perfect! We supply high-quality grinding stones and spare parts for ongoing maintenance and optimization.\n\nQuick info needed:\n✓ Which equipment/machine? (make/model)\n✓ Grinding stones, bearings, or other spares?\n✓ How soon do you need them?",
+      language: "en",
+      status: "approved"
     }
   ];
 
@@ -87,16 +115,12 @@ export async function GET() {
       };
     });
 
-    // Merge the custom webinar_invite_text into the fetched ones if it is not present in their Twilio account
-    const hasWebinarInvite = parsedTemplates.some((t: any) => t.sid === "HX4fc87b16abefa2e835b5e0f881b76213");
-    if (!hasWebinarInvite) {
-      parsedTemplates.push(mockTemplates[1]);
-    }
-    
-    // Also merge the pending template if not fetched
-    const hasWebmailInvite = parsedTemplates.some((t: any) => t.sid === "HX80131b9c07affee0a1404f655f587448");
-    if (!hasWebmailInvite) {
-      parsedTemplates.push(mockTemplates[2]);
+    // Merge missing mock templates
+    for (const mockT of mockTemplates) {
+      const exists = parsedTemplates.some((t: any) => t.sid === mockT.sid);
+      if (!exists) {
+        parsedTemplates.push(mockT);
+      }
     }
 
     return NextResponse.json({
