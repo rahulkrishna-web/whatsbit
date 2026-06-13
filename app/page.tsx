@@ -162,9 +162,14 @@ export default function ChatApp() {
   const [inputText, setInputText] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeMenuFilter, setActiveMenuFilter] = useState<string>("all");
-  const [activeView, setActiveView] = useState<"chat" | "automations" | "settings" | "campaigns">("chat");
+  const [activeView, setActiveView] = useState<"chat" | "automations" | "settings" | "campaigns" | "ai">("chat");
   const [companyName, setCompanyName] = useState("RS Choyal");
   const [logoUrl, setLogoUrl] = useState("/rschoyal-logo.svg");
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const [aiRestrictedNumbers, setAiRestrictedNumbers] = useState("");
+  const [aiSystemInstruction, setAiSystemInstruction] = useState("You are a helpful customer support assistant for RS Choyal Group.");
+  const [aiApiKey, setAiApiKey] = useState("");
+  const [aiSaveLoading, setAiSaveLoading] = useState(false);
   const [timeZone, setTimeZone] = useState("Asia/Kolkata");
   const [hideCompanyName, setHideCompanyName] = useState(false);
   const [logoHeight, setLogoHeight] = useState(30);
@@ -649,6 +654,48 @@ export default function ChatApp() {
     });
     return () => unsub();
   }, []);
+
+  useEffect(() => {
+    async function loadAIConfig() {
+      try {
+        const snap = await getDoc(doc(db, "settings", "ai_config"));
+        if (snap.exists()) {
+          const data = snap.data();
+          setAiEnabled(data.enabled === true);
+          setAiRestrictedNumbers(Array.isArray(data.restrictedNumbers) ? data.restrictedNumbers.join("\n") : "");
+          setAiSystemInstruction(data.systemInstruction || "You are a helpful customer support assistant for RS Choyal Group.");
+          setAiApiKey(data.apiKey || "");
+        }
+      } catch (err) {
+        console.error("Failed to load AI Config:", err);
+      }
+    }
+    loadAIConfig();
+  }, []);
+
+  const handleSaveAIConfig = async () => {
+    setAiSaveLoading(true);
+    const numbersArray = aiRestrictedNumbers
+      .split("\n")
+      .map(num => num.trim())
+      .filter(num => num.length > 0);
+
+    try {
+      await setDoc(doc(db, "settings", "ai_config"), {
+        enabled: aiEnabled,
+        restrictedNumbers: numbersArray,
+        systemInstruction: aiSystemInstruction,
+        apiKey: aiApiKey,
+        updatedAt: serverTimestamp(),
+      });
+      alert("AI Configuration saved successfully!");
+    } catch (err) {
+      console.error("Failed to save AI Config:", err);
+      alert("Error saving AI Configuration: " + (err as Error).message);
+    } finally {
+      setAiSaveLoading(false);
+    }
+  };
 
   const handleSaveSettings = async (name: string, logo: string, tz: string, hideName: boolean, logoHeightVal: number) => {
     setSettingsLoading(true);
@@ -1829,6 +1876,182 @@ export default function ChatApp() {
     );
   };
 
+  const renderAIConfigView = () => {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, background: '#090d16', color: '#f8fafc', padding: '32px', fontFamily: 'sans-serif', overflowY: 'auto' }}>
+        <div style={{ maxWidth: '600px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          
+          <div style={{ borderBottom: '1px solid #1e293b', paddingBottom: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '10px',
+              background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #ec4899 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#fff',
+              boxShadow: '0 0 20px rgba(139, 92, 246, 0.4)'
+            }}>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+                <path d="M12 2C12 2 12 8 18 12C12 12 12 18 12 22C12 22 12 16 6 12C12 12 12 2 12 2Z"></path>
+              </svg>
+            </div>
+            <div>
+              <h2 style={{ fontSize: '24px', fontWeight: 600, color: '#f8fafc', margin: 0 }}>Gemini AI Chatbot</h2>
+              <p style={{ fontSize: '13px', color: '#94a3b8', marginTop: '4px' }}>
+                Enable and configure generative AI responses powered by Google Gemini.
+              </p>
+            </div>
+          </div>
+
+          <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {/* Enable Toggle */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #1e293b', paddingBottom: '16px' }}>
+              <div>
+                <label style={{ fontSize: '14px', fontWeight: 600, color: '#cbd5e1' }}>Enable AI Chatbot</label>
+                <p style={{ fontSize: '12px', color: '#64748b', marginTop: '2px', margin: 0 }}>
+                  Automatically respond to incoming customer messages when active.
+                </p>
+              </div>
+              <button
+                onClick={() => setAiEnabled(!aiEnabled)}
+                style={{
+                  width: '50px',
+                  height: '26px',
+                  borderRadius: '13px',
+                  background: aiEnabled ? '#10b981' : '#334155',
+                  position: 'relative',
+                  border: 'none',
+                  cursor: 'pointer',
+                  transition: 'background 0.2s',
+                  padding: 0,
+                }}
+              >
+                <div style={{
+                  width: '20px',
+                  height: '20px',
+                  borderRadius: '50%',
+                  background: '#fff',
+                  position: 'absolute',
+                  top: '3px',
+                  left: aiEnabled ? '27px' : '3px',
+                  transition: 'left 0.2s',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
+                }} />
+              </button>
+            </div>
+
+            {/* Restricted Phone Numbers */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <label style={{ fontSize: '13px', fontWeight: 600, color: '#cbd5e1' }}>Restricted Phone Numbers</label>
+                <span style={{ fontSize: '11px', color: '#64748b' }}>One number per line</span>
+              </div>
+              <textarea
+                value={aiRestrictedNumbers}
+                onChange={(e) => setAiRestrictedNumbers(e.target.value)}
+                placeholder="e.g.&#10;+916205006621&#10;+918890211444"
+                rows={4}
+                style={{
+                  width: '100%',
+                  background: '#1e293b',
+                  border: '1px solid #334155',
+                  borderRadius: '8px',
+                  padding: '10px 12px',
+                  color: '#f8fafc',
+                  fontSize: '13px',
+                  outline: 'none',
+                  fontFamily: 'monospace',
+                  resize: 'vertical',
+                }}
+              />
+              <p style={{ fontSize: '11px', color: '#64748b', margin: 0 }}>
+                The AI chatbot will ONLY respond to messages received from these specific phone numbers.
+              </p>
+            </div>
+
+            {/* System Instruction / Persona */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label style={{ fontSize: '13px', fontWeight: 600, color: '#cbd5e1' }}>System Instruction / AI Persona</label>
+              <textarea
+                value={aiSystemInstruction}
+                onChange={(e) => setAiSystemInstruction(e.target.value)}
+                placeholder="Describe how the AI should behave, e.g., 'You are a helpful customer support assistant...'"
+                rows={5}
+                style={{
+                  width: '100%',
+                  background: '#1e293b',
+                  border: '1px solid #334155',
+                  borderRadius: '8px',
+                  padding: '10px 12px',
+                  color: '#f8fafc',
+                  fontSize: '13px',
+                  outline: 'none',
+                  lineHeight: '1.5',
+                  resize: 'vertical',
+                }}
+              />
+            </div>
+
+            {/* API Key Override */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label style={{ fontSize: '13px', fontWeight: 600, color: '#cbd5e1' }}>Gemini API Key (Optional)</label>
+              <input
+                type="password"
+                value={aiApiKey}
+                onChange={(e) => setAiApiKey(e.target.value)}
+                placeholder="Leave blank to use system default credential"
+                style={{
+                  width: '100%',
+                  background: '#1e293b',
+                  border: '1px solid #334155',
+                  borderRadius: '8px',
+                  padding: '10px 12px',
+                  color: '#f8fafc',
+                  fontSize: '13px',
+                  outline: 'none',
+                }}
+              />
+              <p style={{ fontSize: '11px', color: '#64748b', margin: 0 }}>
+                Overrides the default project API key if provided. Credentials are encrypted and stored securely.
+              </p>
+            </div>
+
+            {/* Save Button */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px' }}>
+              <button
+                onClick={handleSaveAIConfig}
+                disabled={aiSaveLoading}
+                style={{
+                  background: '#4f46e5',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '10px 20px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  opacity: aiSaveLoading ? 0.7 : 1,
+                  transition: 'background 0.2s',
+                  boxShadow: '0 4px 6px -1px rgba(79, 70, 229, 0.2)',
+                }}
+                onMouseEnter={(e) => {
+                  if (!aiSaveLoading) e.currentTarget.style.background = '#4338ca';
+                }}
+                onMouseLeave={(e) => {
+                  if (!aiSaveLoading) e.currentTarget.style.background = '#4f46e5';
+                }}
+              >
+                {aiSaveLoading ? 'Saving Configuration...' : 'Save AI Settings'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className={styles.appContainer}>
       {/* VSCode-style slim Activity Bar */}
@@ -1879,6 +2102,22 @@ export default function ChatApp() {
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
+            </svg>
+          </button>
+
+          {/* AI Tab */}
+          <button 
+            className={`${styles.activityButton} ${activeView === "ai" ? styles.activityButtonActive : ""}`} 
+            onClick={() => {
+              setActiveView("ai");
+            }}
+            title="Gemini AI Chatbot"
+            style={{
+              color: activeView === "ai" ? "#4f46e5" : "inherit"
+            }}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+              <path d="M12 2C12 2 12 8 18 12C12 12 12 18 12 22C12 22 12 16 6 12C12 12 12 2 12 2Z"></path>
             </svg>
           </button>
         </div>
@@ -3342,6 +3581,8 @@ export default function ChatApp() {
         ) : (
           renderAccessRestricted()
         )
+      ) : activeView === "ai" ? (
+        renderAIConfigView()
       ) : (
         renderSettingsView()
       )}

@@ -239,6 +239,8 @@ export async function POST(request: Request) {
       }
     }
 
+    let automatedReplied = false;
+
     if (fromPhone && (body || mediaUrl)) {
       const timeString = new Date().toLocaleTimeString("en-IN", {
         timeZone: tz,
@@ -309,6 +311,7 @@ export async function POST(request: Request) {
               if (accountSid && authToken) {
                 const client = twilio(accountSid, authToken);
                 const brochureUrl = "https://cdn.clyrix.com/drive/wondermill_brochure.pdf";
+                automatedReplied = true;
                 
                 console.log(`[Autoresponder] Sending brochure to ${fromPhone}`);
                 const mediaMessage = await client.messages.create({
@@ -434,6 +437,7 @@ export async function POST(request: Request) {
 
             if (accountSid && authToken) {
               const client = twilio(accountSid, authToken);
+              automatedReplied = true;
 
               let responseTemplateSid = "";
               let responseTemplateText = "";
@@ -663,6 +667,125 @@ export async function POST(request: Request) {
           }
         } catch (autoErr) {
           console.error("Error in Lead Qualification autoresponder:", autoErr);
+        }
+      }
+
+      // 3. AI Chatbot Autoresponder
+      if (fromPhone && body && !automatedReplied) {
+        try {
+          const aiConfigSnap = await getDoc(doc(db, "settings", "ai_config"));
+          if (aiConfigSnap.exists()) {
+            const aiConfig = aiConfigSnap.data();
+            const isEnabled = aiConfig.enabled === true;
+            const restrictedList = aiConfig.restrictedNumbers || [];
+            
+            // Clean phone numbers in restricted list for matching
+            const normalizedRestrictedList = restrictedList.map((n: string) => {
+              let num = n.replace(/[^\d+]/g, "");
+              if (/^\d{10}$/.test(num)) num = "+91" + num;
+              if (/^91\d{10}$/.test(num)) num = "+" + num;
+              return num;
+            });
+
+            const isNumberAllowed = normalizedRestrictedList.includes(fromPhone);
+
+            if (isEnabled && isNumberAllowed) {
+              console.log(`[AI Chatbot] Triggered AI responder for number ${fromPhone}`);
+              
+              // Get last 10 messages for context
+              const messagesSnap = await getDocs(messagesRef);
+              const sortedHistory = messagesSnap.docs
+                .map(d => d.data())
+                .sort((a, b) => (a.timestamp?.seconds || 0) - (b.timestamp?.seconds || 0))
+                .slice(-10); // Keep last 10 messages
+
+              const systemInstruction = aiConfig.systemInstruction || "You are a helpful customer support assistant for RS Choyal Group.";
+              
+              const contents = sortedHistory.map(m => ({
+                role: m.isSent ? "model" : "user",
+                parts: [{ text: m.text || "" }]
+              }));
+
+              // Ensure contents end with the current user message if empty or role mismatch
+              if (contents.length === 0 || contents[contents.length - 1].role !== "user") {
+                contents.push({
+                  role: "user",
+                  parts: [{ text: body }]
+                });
+              }
+
+              const geminiApiKey = aiConfig.apiKey || process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+
+              if (geminiApiKey) {
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`, {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json"
+                  },
+                  body: JSON.stringify({
+                    contents,
+                    systemInstruction: {
+                      parts: [{ text: systemInstruction }]
+                    }
+                  })
+                });
+
+                if (res.ok) {
+                  const resData = await res.json();
+                  const aiResponseText = resData.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                  if (aiResponseText) {
+                    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+                    const authToken = process.env.TWILIO_AUTH_TOKEN;
+                    const senderNumber = process.env.TWILIO_SENDER_NUMBER || "whatsapp:+918890211444";
+
+                    if (accountSid && authToken) {
+                      const client = twilio(accountSid, authToken);
+                      const twilioMessage = await client.messages.create({
+                        from: senderNumber,
+                        to: `whatsapp:${fromPhone}`,
+                        body: aiResponseText
+                      });
+
+                      const aiTimeString = new Date().toLocaleTimeString("en-IN", {
+                        timeZone: tz,
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hour12: true
+                      });
+
+                      await addDoc(messagesRef, {
+                        text: aiResponseText,
+                        isSent: true,
+                        time: aiTimeString,
+                        status: "sent",
+                        twilioSid: twilioMessage.sid,
+                        timestamp: serverTimestamp(),
+                        senderName: "AI Chatbot"
+                      });
+
+                      await setDoc(contactRef, {
+                        preview: aiResponseText.length > 50 ? aiResponseText.substring(0, 47) + "..." : aiResponseText,
+                        time: aiTimeString,
+                        lastUpdated: serverTimestamp(),
+                        unreadCount: 0
+                      }, { merge: true });
+
+                      console.log(`[AI Chatbot] Successfully sent AI response to ${fromPhone}`);
+                    }
+                  } else {
+                    console.warn("[AI Chatbot] Empty response from Gemini API");
+                  }
+                } else {
+                  console.error("[AI Chatbot] Gemini API returned error:", await res.text());
+                }
+              } else {
+                console.warn("[AI Chatbot] No Gemini API key found.");
+              }
+            }
+          }
+        } catch (aiErr) {
+          console.error("Error in AI Chatbot responder:", aiErr);
         }
       }
     }
