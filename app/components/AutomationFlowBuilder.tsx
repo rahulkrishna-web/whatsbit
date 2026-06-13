@@ -28,6 +28,7 @@ interface FlowNode {
       nodeId: string;
     }[];
     webhookToken?: string;
+    templateSid?: string;
   };
   nextNodeId?: string;
 }
@@ -969,6 +970,11 @@ export default function AutomationFlowBuilder({ currentUser }: { currentUser: { 
                 📄 {node.config.mediaName}
               </div>
             )}
+            {node.config.templateSid && (
+              <div style={{ fontSize: "10px", color: "#38bdf8", marginTop: "4px", fontWeight: 500 }}>
+                🔑 SID: {node.config.templateSid}
+              </div>
+            )}
             {node.config.buttons && node.config.buttons.length > 0 && (
               <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginTop: "4px" }}>
                 {node.config.buttons.map((btn, i) => (
@@ -1895,6 +1901,24 @@ export default function AutomationFlowBuilder({ currentUser }: { currentUser: { 
 
             {selectedNode.type === "action" && (
               <>
+                <div className={styles.inputGroup}>
+                  <label>Template ID (Twilio Content SID)</label>
+                  <input
+                    type="text"
+                    value={selectedNode.config.templateSid || ""}
+                    onChange={(e) =>
+                      handleUpdateNode({
+                        ...selectedNode,
+                        config: { ...selectedNode.config, templateSid: e.target.value },
+                      })
+                    }
+                    placeholder="e.g. HX46c6463e02f78669aac9d85c160fb0ab"
+                  />
+                  <p style={{ fontSize: "11px", color: "#64748b", marginTop: "4px", lineHeight: "1.4" }}>
+                    Optional. Enter the Twilio Content Template SID to bypass the 24-hour WhatsApp session limit.
+                  </p>
+                </div>
+
                 <div className={styles.inputGroup}>
                   <label>Message Content</label>
                   <textarea

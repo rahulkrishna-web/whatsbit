@@ -476,6 +476,44 @@ export async function POST(request: Request) {
                 brochureName = "RS_Choyal_Stones_Catalogue.pdf";
               }
 
+              // Load flow configuration from Firestore to fetch user-configured template SIDs, text, and media details
+              try {
+                const flowSnap = await getDoc(doc(db, "flows", "whatsapp-lead-qualification"));
+                if (flowSnap.exists()) {
+                  const flowData = flowSnap.data();
+                  const nodes = (flowData.nodes || []) as any[];
+                  const inquiryNode = nodes.find((n) => n.id === inquiryNodeId);
+                  const brochureNode = nodes.find((n) => n.id === brochureNodeId);
+
+                  if (inquiryNode && inquiryNode.config) {
+                    if (inquiryNode.config.templateSid) {
+                      responseTemplateSid = inquiryNode.config.templateSid.trim();
+                    }
+                    if (inquiryNode.config.text) {
+                      responseTemplateText = inquiryNode.config.text;
+                    }
+                  }
+
+                  if (brochureNode && brochureNode.config) {
+                    if (brochureNode.config.templateSid) {
+                      brochureTemplateSid = brochureNode.config.templateSid.trim();
+                    }
+                    if (brochureNode.config.text) {
+                      brochureText = brochureNode.config.text;
+                    }
+                    if (brochureNode.config.mediaUrl) {
+                      brochureUrl = brochureNode.config.mediaUrl;
+                    }
+                    if (brochureNode.config.mediaName) {
+                      brochureName = brochureNode.config.mediaName;
+                    }
+                  }
+                  console.log(`[Lead Qualification Autoresponder] Dynamically loaded configuration: Response SID = ${responseTemplateSid}, Brochure SID = ${brochureTemplateSid}`);
+                }
+              } catch (flowErr) {
+                console.error("Failed to load flow SIDs from Firestore:", flowErr);
+              }
+
               console.log(`[Lead Qualification Autoresponder] Sending template ${responseTemplateSid} to ${fromPhone}`);
               const inquiryMessage = await client.messages.create({
                 from: senderNumber,
