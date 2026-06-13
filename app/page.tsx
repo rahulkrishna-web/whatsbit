@@ -74,6 +74,7 @@ type Message = {
   timestamp?: any;
   deliveredAt?: string;
   readAt?: string;
+  templateSid?: string;
 };
 
 type Contact = {
@@ -126,9 +127,24 @@ const PREDEFINED_TEMPLATES = [
   },
   {
     id: "lead_qualification_welcome",
-    name: "Lead Qualification Welcome",
-    text: "Hi {{1}}.\n\nThank you for your interest in flour milling solutions! 👋\n\nRS Choyal Group is a turnkey milling solutions provider with 60+ years of experience and 275+ successful projects across the globe.\n\nWhat brings you here?",
-    templateSid: "HX46c6463c02f78669aac9d83c160f0ab",
+    name: "Lead Qualification Welcome (Plain Buttons)",
+    text: "Hi {{1}},\n\nThank you for your interest in flour milling solutions! 👋\n\nRS Choyal Group is a turnkey milling solutions provider with 60+ years of experience and 275+ successful projects across the globe.\n\nWhat brings you here?",
+    templateSid: "HX46c6463e02f78669aac9d85c160fb0ab",
+    buttons: ["Setup New Plant", "Plant Expansion", "Spares & Stones"]
+  },
+  {
+    id: "lead_qualification_welcome_emojis",
+    name: "Lead Qualification Welcome (Emoji Buttons)",
+    text: "Hi {{1}},\n\nThank you for your interest in flour milling solutions! 👋\n\nRS Choyal Group is a turnkey milling solutions provider with 60+ years of experience and 275+ successful projects across the globe.\n\nWhat brings you here?",
+    templateSid: "HX1ae93a6b279b8dd306b66b0b7693efe2",
+    buttons: ["🏭 Setup New Plant", "📈 Plant Expansion", "⚙️ Spares & Stones"]
+  },
+  {
+    id: "message_opt_in",
+    name: "Message Opt-in",
+    text: "Connect with Messages",
+    templateSid: "HX6d51ee80bab80a884689e156bc3f7df1",
+    buttons: ["Yes", "No"]
   }
 ];
 
@@ -2307,6 +2323,9 @@ export default function ChatApp() {
                   );
                 }
                 const mediaUrl = msg.mediaUrl || "";
+                const templateConfig = msg.templateSid 
+                  ? PREDEFINED_TEMPLATES.find(t => t.templateSid === msg.templateSid)
+                  : null;
                 return (
                   <div key={msg.id} className={`${styles.messageWrapper} ${msg.isSent ? styles.sent : styles.received}`}>
                     <div className={styles.messageBubble}>
@@ -2459,6 +2478,49 @@ export default function ChatApp() {
                         </div>
                       )}
                     </div>
+                    {templateConfig?.buttons && (
+                      <div style={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: '8px',
+                        marginTop: '4px',
+                        marginBottom: '8px',
+                        width: '100%',
+                        justifyContent: msg.isSent ? 'flex-end' : 'flex-start'
+                      }}>
+                        {templateConfig.buttons.map((btnText, i) => (
+                          <div
+                            key={i}
+                            style={{
+                              backgroundColor: '#fff',
+                              border: '1px solid #e2e8f0',
+                              borderRadius: '18px',
+                              padding: '6px 14px',
+                              fontSize: '12px',
+                              fontWeight: '500',
+                              color: '#0284c7',
+                              boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                              cursor: 'pointer',
+                              userSelect: 'none',
+                              transition: 'all 0.2s ease',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = '#f0f9ff';
+                              e.currentTarget.style.borderColor = '#bae6fd';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = '#fff';
+                              e.currentTarget.style.borderColor = '#e2e8f0';
+                            }}
+                          >
+                            {btnText}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 );
               })}

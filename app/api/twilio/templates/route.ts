@@ -27,36 +27,43 @@ export async function GET() {
       status: "pending"
     },
     {
-      sid: "HX46c6463c02f78669aac9d83c160f0ab",
-      friendlyName: "Lead Qualification Welcome",
-      body: "Hi {{1}}.\n\nThank you for your interest in flour milling solutions! 👋\n\nRS Choyal Group is a turnkey milling solutions provider with 60+ years of experience and 275+ successful projects across the globe.\n\nWhat brings you here?",
+      sid: "HX46c6463e02f78669aac9d85c160fb0ab",
+      friendlyName: "choyal_lead_welcome_buttons (Plain)",
+      body: "Hi {{1}},\n\nThank you for your interest in flour milling solutions! 👋\n\nRS Choyal Group is a turnkey milling solutions provider with 60+ years of experience and 275+ successful projects across the globe.\n\nWhat brings you here?",
       language: "en",
       status: "approved"
     },
     {
-      sid: "HXcd74bac32850c134356bdfb56915be1c",
-      friendlyName: "Turnkey Plant Response",
-      body: "Perfect! Setting up a turnkey plant is our specialty. We design and deliver complete milling solutions from 2 TPD to 2000 TPD based on your capacity needs.\n\nTo give you an accurate proposal, we need a few quick details:\n✓ What capacity are you targeting? (TPD)\n✓ What flour type? (Wheat, Pulses, Others)\n✓ What's your budget?\n\nOur technical team will prepare a customized plan for you.",
+      sid: "HX1ae93a6b279b8dd306b66b0b7693efe2",
+      friendlyName: "choyal_lead_welcome_buttons (Emoji)",
+      body: "Hi {{1}},\n\nThank you for your interest in flour milling solutions! 👋\n\nRS Choyal Group is a turnkey milling solutions provider with 60+ years of experience and 275+ successful projects across the globe.\n\nWhat brings you here?",
       language: "en",
       status: "approved"
     },
     {
-      sid: "HX2fd7981c6f7f4c0076b05cc4b5f66c67",
-      friendlyName: "Plant Expansion Response",
+      sid: "HX2fd7981c6f7f4c0076b05ee4b5f66c67",
+      friendlyName: "choyal_turnkey_plant_response",
       body: "Great! Expansion is something we handle regularly. Whether you're scaling up your current capacity or adding new product lines, we have the right solutions.\n\nA few quick questions:\n✓ Current capacity?\n✓ Target expanded capacity?\n✓ Timeline for the expansion?\n✓ Product that you mill?",
       language: "en",
       status: "approved"
     },
     {
-      sid: "HXa5d6ceac6207c14c348c4d8c89b7adc0",
-      friendlyName: "Spares & Stones Response",
+      sid: "HXed74bae32850c134356bdfb56915be1e",
+      friendlyName: "choyal_plant_expansion_response",
+      body: "Great! Expansion is something we handle regularly. Whether you're scaling up your current capacity or adding new product lines, we have the right solutions.\n\nA few quick questions:\n✓ Current capacity?\n✓ Target expanded capacity?\n✓ Timeline for the expansion?\n✓ Product that you mill?",
+      language: "en",
+      status: "approved"
+    },
+    {
+      sid: "HXa5d6eeac6207c14c348c4d8c89b7adc0",
+      friendlyName: "choyal_spares_stones_response",
       body: "Perfect! We supply high-quality grinding stones and spare parts for ongoing maintenance and optimization.\n\nQuick info needed:\n✓ Which equipment/machine? (make/model)\n✓ Grinding stones, bearings, or other spares?\n✓ How soon do you need them?",
       language: "en",
       status: "approved"
     },
     {
       sid: "HX0f7cdc84a9b825505fc6a3a608c2a3bc",
-      friendlyName: "Send Plant Brochure",
+      friendlyName: "company_brochure",
       body: "Thank you for your interest in RS Choyal Group!\n\nHere's our company brochure with detailed specifications\n📄 {{1}}\n\nAlso check out these quick videos to see our work:\n\n🎥 Company Overview: https://www.youtube.com/watch?v=DlEcmcDS598\n\n🎥 How We Setup Plants: https://www.youtube.com/watch?v=OETierqPRFA\n\n🎥 Milling Plant Process (Hindi): https://www.youtube.com/watch?v=MjUnwkiwAvM",
       language: "en",
       status: "approved"

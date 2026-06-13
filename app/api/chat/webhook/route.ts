@@ -419,6 +419,8 @@ export async function POST(request: Request) {
           const lastSentMessage = sentMessages[0];
           // Auto-respond if the last sent message was the welcome template or contained flour milling solutions
           const isWelcomeTemplate = lastSentMessage && (
+            lastSentMessage.templateSid === "HX1ae93a6b279b8dd306b66b0b7693efe2" ||
+            lastSentMessage.templateSid === "HX46c6463e02f78669aac9d85c160fb0ab" ||
             lastSentMessage.templateSid === "HX46c6463c02f78669aac9d83c160f0ab" ||
             (lastSentMessage.text && 
              lastSentMessage.text.toLowerCase().includes("flour milling solutions") && 
@@ -447,8 +449,8 @@ export async function POST(request: Request) {
                 choiceLabel = "Setup New Plant";
                 inquiryNodeId = "node-3a";
                 brochureNodeId = "node-4a";
-                responseTemplateSid = "HXcd74bac32850c134356bdfb56915be1c";
-                responseTemplateText = "Perfect! Setting up a turnkey plant is our specialty. We design and deliver complete milling solutions from 2 TPD to 2000 TPD based on your capacity needs.\n\nTo give you an accurate proposal, we need a few quick details:\n✓ What capacity are you targeting? (TPD)\n✓ What flour type? (Wheat, Pulses, Others)\n✓ What's your budget?\n\nOur technical team will prepare a customized plan for you.";
+                responseTemplateSid = "HX2fd7981c6f7f4c0076b05ee4b5f66c67";
+                responseTemplateText = "Great! Expansion is something we handle regularly. Whether you're scaling up your current capacity or adding new product lines, we have the right solutions.\n\nA few quick questions:\n✓ Current capacity?\n✓ Target expanded capacity?\n✓ Timeline for the expansion?\n✓ Product that you mill?";
                 
                 brochureTemplateSid = "HX0f7cdc84a9b825505fc6a3a608c2a3bc";
                 brochureText = "Thank you for your interest in RS Choyal Group!\n\nHere's our company brochure with detailed specifications\n📄 https://cdn.clyrix.com/drive/rscg_company_profile.pdf\n\nAlso check out these quick videos to see our work:\n\n🎥 Company Overview: https://www.youtube.com/watch?v=DlEcmcDS598\n\n🎥 How We Setup Plants: https://www.youtube.com/watch?v=OETierqPRFA\n\n🎥 Milling Plant Process (Hindi): https://www.youtube.com/watch?v=MjUnwkiwAvM";
@@ -458,7 +460,7 @@ export async function POST(request: Request) {
                 choiceLabel = "Plant Expansion";
                 inquiryNodeId = "node-3b";
                 brochureNodeId = "node-4b";
-                responseTemplateSid = "HX2fd7981c6f7f4c0076b05cc4b5f66c67";
+                responseTemplateSid = "HXed74bae32850c134356bdfb56915be1e";
                 responseTemplateText = "Great! Expansion is something we handle regularly. Whether you're scaling up your current capacity or adding new product lines, we have the right solutions.\n\nA few quick questions:\n✓ Current capacity?\n✓ Target expanded capacity?\n✓ Timeline for the expansion?\n✓ Product that you mill?";
                 brochureText = "Here's our brochure and video overviews for expanding existing plants:\n🎥 Process Overview: https://www.youtube.com/watch?v=DlEcmcDS598\n🎥 Company Overview: https://www.youtube.com/watch?v=DlEcmcDS598";
                 brochureUrl = "https://cdn.clyrix.com/drive/rscg_company_profile.pdf";
@@ -467,7 +469,7 @@ export async function POST(request: Request) {
                 choiceLabel = "Spares & Stones";
                 inquiryNodeId = "node-3c";
                 brochureNodeId = "node-4c";
-                responseTemplateSid = "HXa5d6ceac6207c14c348c4d8c89b7adc0";
+                responseTemplateSid = "HXa5d6eeac6207c14c348c4d8c89b7adc0";
                 responseTemplateText = "Perfect! We supply high-quality grinding stones and spare parts for ongoing maintenance and optimization.\n\nQuick info needed:\n✓ Which equipment/machine? (make/model)\n✓ Grinding stones, bearings, or other spares?\n✓ How soon do you need them?";
                 brochureText = "Please find attached our stones & spares components specifications document for Choyal mills.";
                 brochureUrl = "https://whatsbit.vercel.app/RS_Choyal_Stones_Catalogue.pdf";
