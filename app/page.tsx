@@ -127,24 +127,31 @@ const PREDEFINED_TEMPLATES = [
   },
   {
     id: "lead_qualification_welcome",
-    name: "Lead Qualification Welcome (Plain Buttons)",
+    name: "Welcome Flow",
     text: "Hi {{1}},\n\nThank you for your interest in flour milling solutions! 👋\n\nRS Choyal Group is a turnkey milling solutions provider with 60+ years of experience and 275+ successful projects across the globe.\n\nWhat brings you here?",
     templateSid: "HX46c6463e02f78669aac9d85c160fb0ab",
     buttons: ["Setup New Plant", "Plant Expansion", "Spares & Stones"]
   },
   {
-    id: "lead_qualification_welcome_emojis",
-    name: "Lead Qualification Welcome (Emoji Buttons)",
-    text: "Hi {{1}},\n\nThank you for your interest in flour milling solutions! 👋\n\nRS Choyal Group is a turnkey milling solutions provider with 60+ years of experience and 275+ successful projects across the globe.\n\nWhat brings you here?",
-    templateSid: "HX1ae93a6b279b8dd306b66b0b7693efe2",
-    buttons: ["🏭 Setup New Plant", "📈 Plant Expansion", "⚙️ Spares & Stones"]
+    id: "missed_call",
+    name: "Missed Call",
+    text: "Hi {{1}},\n\nWe tried reaching you about your milling plant inquiry. 📞\n\nNo worries! Here are easier ways to connect:\n\n✓ Reply on WhatsApp \n✓ Call us at +91 92402 89259\n\nWhat works best for you?",
+    templateSid: "HX3923a558bd905659e8030c0323066bc2",
+    buttons: ["Chat Here", "Call"]
   },
   {
-    id: "message_opt_in",
-    name: "Message Opt-in",
-    text: "Connect with Messages",
-    templateSid: "HX6d51ee80bab80a884689e156bc3f7df1",
-    buttons: ["Yes", "No"]
+    id: "follow_up",
+    name: "Follow up",
+    text: "Hi {{1}},\n\nHope you've had a chance to review the materials we shared! 👋\n\nI'm here to help with any questions about:\n- Plant design & customization for your needs\n- Investment & timeline details\n- Technical specifications\n- Next steps\n\nWhat would help you most right now?",
+    templateSid: "HXd48310d1653f996f15a7a39f6a2803b5",
+    buttons: ["Have Questions", "Call Me", "Chat Later", "Ready to Proceed"]
+  },
+  {
+    id: "send_brochure",
+    name: "Send Brochure",
+    text: "Thank you for your interest in RS Choyal Group!\n\nHere's our company brochure with detailed specifications\n📄 {{1}}\n\nAlso check out these quick videos to see our work:\n\n🎥 Company Overview: https://www.youtube.com/watch?v=DlEcmcDS598\n\n🎥 How We Setup Plants: https://www.youtube.com/watch?v=OETierqPRFA\n\n🎥 Milling Plant Process (Hindi): https://www.youtube.com/watch?v=MjUnwkiwAvM",
+    templateSid: "HX0f7cde84a9b825505fc6a3a608c2a3be",
+    brochureLink: "https://cdn.clyrix.com/drive/rscg_company_profile.pdf"
   }
 ];
 
@@ -167,6 +174,40 @@ export default function ChatApp() {
   const [editTZ, setEditTZ] = useState("Asia/Kolkata");
   const [editHideCompanyName, setEditHideCompanyName] = useState(false);
   const [editLogoHeight, setEditLogoHeight] = useState(30);
+
+  const [templates, setTemplates] = useState(PREDEFINED_TEMPLATES);
+
+  useEffect(() => {
+    async function loadLiveTemplates() {
+      try {
+        const res = await fetch("/api/twilio/templates");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.templates) {
+            setTemplates((prev) =>
+              prev.map((pt) => {
+                const live = data.templates.find((lt: any) => lt.sid === pt.templateSid);
+                if (live && live.body) {
+                  let liveText = live.body;
+                  if (pt.brochureLink) {
+                    liveText = liveText.replace("{{1}}", pt.brochureLink);
+                  }
+                  return {
+                    ...pt,
+                    text: liveText,
+                  };
+                }
+                return pt;
+              })
+            );
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to load live templates, using fallbacks:", err);
+      }
+    }
+    loadLiveTemplates();
+  }, []);
 
   useEffect(() => {
     setEditName(companyName);
@@ -969,11 +1010,17 @@ export default function ChatApp() {
       clientName = isPhone ? "Customer" : activeContact.name;
     }
 
-    const contentVariables: Record<string, string> = {
-      "1": clientName
-    };
+    const contentVariables: Record<string, string> = {};
+    let textWithVars = template.text;
 
-    const textWithVars = template.text.replace("{{1}}", clientName);
+    if (template.templateSid === "HX0f7cde84a9b825505fc6a3a608c2a3be") {
+      const brochureUrl = "https://cdn.clyrix.com/drive/rscg_company_profile.pdf";
+      contentVariables["1"] = brochureUrl;
+      textWithVars = textWithVars.replace("{{1}}", brochureUrl);
+    } else {
+      contentVariables["1"] = clientName;
+      textWithVars = textWithVars.replace("{{1}}", clientName);
+    }
 
     try {
       const response = await fetch("/api/chat/send", {
@@ -2324,7 +2371,7 @@ export default function ChatApp() {
                 }
                 const mediaUrl = msg.mediaUrl || "";
                 const templateConfig = msg.templateSid 
-                  ? PREDEFINED_TEMPLATES.find(t => t.templateSid === msg.templateSid)
+                  ? templates.find(t => t.templateSid === msg.templateSid)
                   : null;
                 return (
                   <div key={msg.id} className={`${styles.messageWrapper} ${msg.isSent ? styles.sent : styles.received}`}>
@@ -2690,7 +2737,7 @@ export default function ChatApp() {
                     <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', padding: '6px 8px', textTransform: 'uppercase', textAlign: 'left' }}>
                       Select WhatsApp Template
                     </div>
-                    {PREDEFINED_TEMPLATES.map((tmpl) => (
+                    {templates.map((tmpl) => (
                       <button
                         key={tmpl.id}
                         onClick={() => handleSendTemplate(tmpl)}
@@ -2845,7 +2892,7 @@ export default function ChatApp() {
                     <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', padding: '4px 8px', textTransform: 'uppercase', textAlign: 'left' }}>
                       Select WhatsApp Template
                     </div>
-                    {PREDEFINED_TEMPLATES.map((tmpl) => (
+                    {templates.map((tmpl) => (
                       <button
                         key={tmpl.id}
                         onClick={() => handleSendTemplate(tmpl)}

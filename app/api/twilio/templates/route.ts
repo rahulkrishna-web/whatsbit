@@ -67,6 +67,20 @@ export async function GET() {
       body: "Thank you for your interest in RS Choyal Group!\n\nHere's our company brochure with detailed specifications\n📄 {{1}}\n\nAlso check out these quick videos to see our work:\n\n🎥 Company Overview: https://www.youtube.com/watch?v=DlEcmcDS598\n\n🎥 How We Setup Plants: https://www.youtube.com/watch?v=OETierqPRFA\n\n🎥 Milling Plant Process (Hindi): https://www.youtube.com/watch?v=MjUnwkiwAvM",
       language: "en",
       status: "approved"
+    },
+    {
+      sid: "HX3923a558bd905659e8030c0323066bc2",
+      friendlyName: "rscg_missed_call",
+      body: "Hi {{Client Name}},\n\nWe tried reaching you about your milling plant inquiry. 📞\n\nNo worries! Here are easier ways to connect:\n\n✓ Reply on WhatsApp \n✓ Call us at +91 92402 89259\n\nWhat works best for you?",
+      language: "en",
+      status: "approved"
+    },
+    {
+      sid: "HXd48310d1653f996f15a7a39f6a2803b5",
+      friendlyName: "rscg_follow_up",
+      body: "Hi {{Client Name}},\n\nHope you've had a chance to review the materials we shared! 👋\n\nI'm here to help with any questions about:\n- Plant design & customization for your needs\n- Investment & timeline details\n- Technical specifications\n- Next steps\n\nWhat would help you most right now?",
+      language: "en",
+      status: "approved"
     }
   ];
 
