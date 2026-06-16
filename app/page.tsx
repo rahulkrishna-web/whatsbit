@@ -1073,6 +1073,16 @@ export default function ChatApp() {
     setShowAssignPopup(false);
   };
 
+  const createShortLink = async (longUrl: string): Promise<string> => {
+    const handle = Math.random().toString(36).substring(2, 8);
+    const docRef = doc(db, "short_links", handle);
+    await setDoc(docRef, {
+      originalUrl: longUrl,
+      createdAt: serverTimestamp(),
+    });
+    return `${window.location.origin}/link/${handle}`;
+  };
+
   const uploadFileForVariable = async (file: File): Promise<string> => {
     setModalUploading(true);
     setModalUploadProgress(0);
@@ -1095,21 +1105,25 @@ export default function ChatApp() {
           }
         };
 
-        xhr.onload = () => {
-          setModalUploading(false);
-          setModalUploadProgress(0);
+        xhr.onload = async () => {
           if (xhr.status >= 200 && xhr.status < 300) {
             try {
               const result = JSON.parse(xhr.responseText);
               if (result.success) {
-                resolve(result.url);
+                const shortUrl = await createShortLink(result.url);
+                resolve(shortUrl);
               } else {
                 reject(new Error(result.error || "Local upload failed"));
               }
             } catch (err: any) {
               reject(new Error("Failed to parse local upload response: " + err.message));
+            } finally {
+              setModalUploading(false);
+              setModalUploadProgress(0);
             }
           } else {
+            setModalUploading(false);
+            setModalUploadProgress(0);
             reject(new Error(`Local upload failed with status code: ${xhr.status}`));
           }
         };
@@ -1147,7 +1161,8 @@ export default function ChatApp() {
             async () => {
               try {
                 const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-                resolve(downloadURL);
+                const shortUrl = await createShortLink(downloadURL);
+                resolve(shortUrl);
               } catch (err: any) {
                 reject(err);
               } finally {
