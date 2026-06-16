@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import twilio from "twilio";
 import { db } from "../../../../lib/firebase";
-import { doc, getDoc, setDoc, addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, addDoc, collection, serverTimestamp, updateDoc } from "firebase/firestore";
 
 function cleanPhone(phone: string): string {
   if (!phone) return "";
@@ -148,7 +148,7 @@ export async function POST(request: Request) {
 
     // Write message to subcollection contacts/{contactId}/messages
     const messagesRef = collection(db, "contacts", cleanContactId, "messages");
-    await addDoc(messagesRef, {
+    const docAdded = await addDoc(messagesRef, {
       text: finalMsgText,
       isSent: true,
       time: timeString,
@@ -160,6 +160,45 @@ export async function POST(request: Request) {
       mediaType: mediaType || null,
       templateSid: useTemplate ? selectedTemplateSid : null,
     });
+
+    // Extract short link handles if present and associate them with this message
+    try {
+      const handles: string[] = [];
+      const linkRegex = /\/link\/([a-zA-Z0-9_-]+)/g;
+      
+      if (text) {
+        let match;
+        while ((match = linkRegex.exec(text)) !== null) {
+          handles.push(match[1]);
+        }
+      }
+      if (contentVariables) {
+        Object.values(contentVariables).forEach((val: any) => {
+          if (typeof val === "string") {
+            let match;
+            while ((match = linkRegex.exec(val)) !== null) {
+              handles.push(match[1]);
+            }
+          }
+        });
+      }
+      if (mediaUrl) {
+        let match;
+        while ((match = linkRegex.exec(mediaUrl)) !== null) {
+          handles.push(match[1]);
+        }
+      }
+
+      for (const handle of handles) {
+        const shortLinkRef = doc(db, "short_links", handle);
+        await updateDoc(shortLinkRef, {
+          contactId: cleanContactId,
+          messageId: docAdded.id
+        });
+      }
+    } catch (err) {
+      console.error("Failed to associate short link handle to message:", err);
+    }
 
     if (campaignId && !errorMsg && twilioMessageSid) {
       try {

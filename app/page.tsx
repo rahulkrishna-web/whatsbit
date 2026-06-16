@@ -75,6 +75,7 @@ type Message = {
   deliveredAt?: string;
   readAt?: string;
   templateSid?: string;
+  linkOpenedAt?: any;
 };
 
 type Contact = {
@@ -818,6 +819,7 @@ export default function ChatApp() {
           senderName: data.senderName || "",
           deliveredAt: data.deliveredAt || "",
           readAt: data.readAt || "",
+          linkOpenedAt: data.linkOpenedAt || null,
         });
       });
 
@@ -1083,6 +1085,56 @@ export default function ChatApp() {
     return `${window.location.origin}/link/${handle}`;
   };
 
+  const handleCustomLinkAlias = async (varName: string, currentLink: string) => {
+    const urlParts = currentLink.split("/link/");
+    if (urlParts.length < 2) return;
+    const origin = urlParts[0];
+    const currentHandle = urlParts[1];
+    
+    const customAlias = prompt("Enter a custom link alias (alphanumeric, e.g. choyal-quote):", currentHandle);
+    if (!customAlias) return;
+    
+    const cleanAlias = customAlias.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "");
+    if (!cleanAlias) {
+      alert("Invalid alias. Only lowercase letters, numbers, dashes, and underscores are allowed.");
+      return;
+    }
+    
+    if (cleanAlias === currentHandle) return;
+    
+    try {
+      const docRef = doc(db, "short_links", cleanAlias);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        alert("This alias is already in use. Please try another one.");
+        return;
+      }
+      
+      const currentRef = doc(db, "short_links", currentHandle);
+      const currentSnap = await getDoc(currentRef);
+      if (!currentSnap.exists()) {
+        alert("Error: Original link reference not found.");
+        return;
+      }
+      
+      const originalUrl = currentSnap.data().originalUrl;
+      
+      await setDoc(docRef, {
+        originalUrl,
+        createdAt: serverTimestamp(),
+        isCustom: true
+      });
+      
+      const newLink = `${origin}/link/${cleanAlias}`;
+      setPromptedVariables(prev => ({
+        ...prev,
+        [varName]: newLink
+      }));
+    } catch (err: any) {
+      alert("Failed to customize alias: " + err.message);
+    }
+  };
+
   const uploadFileForVariable = async (file: File): Promise<string> => {
     setModalUploading(true);
     setModalUploadProgress(0);
@@ -1342,6 +1394,30 @@ export default function ChatApp() {
       }
     }
     return msg.time;
+  };
+
+  const formatLinkOpenedTime = (openedAt: any) => {
+    if (openedAt) {
+      try {
+        const date = openedAt.toDate 
+          ? openedAt.toDate() 
+          : new Date(openedAt.seconds * 1000);
+        
+        if (!isNaN(date.getTime())) {
+          return date.toLocaleString("en-IN", {
+            timeZone: timeZone,
+            day: "numeric",
+            month: "short",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true
+          });
+        }
+      } catch (e) {
+        // Ignore
+      }
+    }
+    return "";
   };
 
   const formatContactTimeIST = (contact: Contact & { lastUpdated?: any }) => {
@@ -2958,6 +3034,11 @@ export default function ChatApp() {
                           {msg.senderName && <div>Sent by {msg.senderName}</div>}
                           {msg.deliveredAt && <div>Delivered: {msg.deliveredAt}</div>}
                           {msg.readAt && <div>Read: {msg.readAt}</div>}
+                          {msg.linkOpenedAt && (
+                            <div style={{ color: "#00a884", fontWeight: 600 }}>
+                              Link opened: {formatLinkOpenedTime(msg.linkOpenedAt)}
+                            </div>
+                          )}
                         </div>
                       )}
                       <div className={styles.messageFooter}>
@@ -3559,6 +3640,26 @@ export default function ChatApp() {
                           </div>
                         )}
                       </div>
+                      {promptedVariables[varName] && promptedVariables[varName].includes("/link/") && (
+                        <button
+                          type="button"
+                          onClick={() => handleCustomLinkAlias(varName, promptedVariables[varName])}
+                          style={{
+                            alignSelf: "flex-start",
+                            fontSize: "11px",
+                            color: "#00a884",
+                            backgroundColor: "transparent",
+                            border: "none",
+                            cursor: "pointer",
+                            padding: "2px 0",
+                            fontWeight: 500,
+                            textDecoration: "underline",
+                            marginTop: "2px"
+                          }}
+                        >
+                          Customize link handle
+                        </button>
+                      )}
                     </div>
                   );
                 })}
