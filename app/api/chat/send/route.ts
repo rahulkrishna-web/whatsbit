@@ -123,6 +123,9 @@ export async function POST(request: Request) {
           if (contentVariables) {
             payload.contentVariables = JSON.stringify(contentVariables);
           }
+          if (mediaUrl) {
+            payload.mediaUrl = [mediaUrl];
+          }
         } else {
           if (text) {
             payload.body = text;

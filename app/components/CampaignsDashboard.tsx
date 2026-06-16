@@ -235,15 +235,23 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
   }, [isCustomTemplate, customTemplateSid, selectedTemplateId]);
 
   const templateVariables = useMemo(() => {
-    const regex = /\{\{(\d+)\}\}/g;
+    const regex = /\{\{\s*([a-zA-Z0-9_\-\s]+)\s*\}\}/g;
     const matches: string[] = [];
     let match;
     while ((match = regex.exec(templateText)) !== null) {
-      if (!matches.includes(match[1])) {
-        matches.push(match[1]);
+      const varName = match[1].trim();
+      if (!matches.includes(varName)) {
+        matches.push(varName);
       }
     }
-    return matches.sort((a, b) => parseInt(a) - parseInt(b));
+    return matches.sort((a, b) => {
+      const numA = parseInt(a);
+      const numB = parseInt(b);
+      if (!isNaN(numA) && !isNaN(numB)) {
+        return numA - numB;
+      }
+      return a.localeCompare(b);
+    });
   }, [templateText]);
 
   const previewText = useMemo(() => {
@@ -1633,12 +1641,13 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
               ) : (
                 <div className={styles.templatesGrid}>
                   {filteredTemplates.map((t) => {
-                    const regex = /\{\{(\d+)\}\}/g;
+                    const regex = /\{\{\s*([a-zA-Z0-9_\-\s]+)\s*\}\}/g;
                     const matches: string[] = [];
                     let match;
                     while ((match = regex.exec(t.body || "")) !== null) {
-                      if (!matches.includes(match[1])) {
-                        matches.push(match[1]);
+                      const varName = match[1].trim();
+                      if (!matches.includes(varName)) {
+                        matches.push(varName);
                       }
                     }
                     const varCount = matches.length;

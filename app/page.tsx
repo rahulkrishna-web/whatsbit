@@ -142,7 +142,7 @@ const PREDEFINED_TEMPLATES = [
   {
     id: "follow_up",
     name: "Follow up",
-    text: "Hi {{1}},\n\nHope you've had a chance to review the materials we shared! 👋\n\nI'm here to help with any questions about:\n- Plant design & customization for your needs\n- Investment & timeline details\n- Technical specifications\n- Next steps\n\nWhat would help you most right now?",
+    text: "Hi {{Client Name}},\n\nHope you've had a chance to review the materials we shared! 👋\n\nI'm here to help with any questions about:\n- Plant design & customization for your needs\n- Investment & timeline details\n- Technical specifications\n- Next steps\n\nWhat would help you most right now?",
     templateSid: "HXd48310d1653f996f15a7a39f6a2803b5",
     buttons: ["Have Questions", "Call Me", "Chat Later", "Ready to Proceed"]
   },
@@ -152,6 +152,12 @@ const PREDEFINED_TEMPLATES = [
     text: "Thank you for your interest in RS Choyal Group!\n\nHere's our company brochure with detailed specifications\n📄 {{1}}\n\nAlso check out these quick videos to see our work:\n\n🎥 Company Overview: https://www.youtube.com/watch?v=DlEcmcDS598\n\n🎥 How We Setup Plants: https://www.youtube.com/watch?v=OETierqPRFA\n\n🎥 Milling Plant Process (Hindi): https://www.youtube.com/watch?v=MjUnwkiwAvM",
     templateSid: "HX0f7cde84a9b825505fc6a3a608c2a3be",
     brochureLink: "https://cdn.clyrix.com/drive/rscg_company_profile.pdf"
+  },
+  {
+    id: "detailed_quotation",
+    name: "Detailed Quotation",
+    text: "Hi {{Client Name}},\n\nThank you for sharing your requirements for a {{Plant Name}}!\n\nBased on our discussion, I've prepared a comprehensive quotation that includes:\n\n✅ Complete turnkey plant design for {{capacity}} TPD capacity\n✅ Equipment list with technical specifications\n✅ All applicable Choyal services for your plant\n\nPlease find attached our detailed quotation & technical proposal:\n📄 {{ quotation_pdf }}\n\nOur next steps typically include:\n🏗️ Technical discussion with our engineering team\n📈 Final proposal with timeline & payment schedule",
+    templateSid: "HX58cd8aa67a890587d506da408de3f01e"
   }
 ];
 
@@ -182,8 +188,27 @@ export default function ChatApp() {
 
   const [templates, setTemplates] = useState(PREDEFINED_TEMPLATES);
   const [showNamePrompt, setShowNamePrompt] = useState(false);
-  const [promptTemplate, setPromptTemplate] = useState<{ name: string; text: string; templateSid: string } | null>(null);
+  const [promptTemplate, setPromptTemplate] = useState<{ id?: string; name: string; text: string; templateSid: string; brochureLink?: string; buttons?: string[] } | null>(null);
   const [promptedName, setPromptedName] = useState("");
+
+  const [showVariablePrompt, setShowVariablePrompt] = useState(false);
+  const [promptedVariables, setPromptedVariables] = useState<Record<string, string>>({});
+  const [modalUploading, setModalUploading] = useState(false);
+  const [modalUploadProgress, setModalUploadProgress] = useState(0);
+
+  const getTemplateVariables = (text: string): string[] => {
+    if (!text) return [];
+    const regex = /\{\{\s*([a-zA-Z0-9_\-\s]+)\s*\}\}/g;
+    const variables: string[] = [];
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      const varName = match[1].trim();
+      if (!variables.includes(varName)) {
+        variables.push(varName);
+      }
+    }
+    return variables;
+  };
 
   useEffect(() => {
     async function loadLiveTemplates() {
@@ -1048,18 +1073,127 @@ export default function ChatApp() {
     setShowAssignPopup(false);
   };
 
-  const executeSendTemplate = async (template: { name: string; text: string; templateSid: string }, clientName: string) => {
+  const uploadFileForVariable = async (file: File): Promise<string> => {
+    setModalUploading(true);
+    setModalUploadProgress(0);
+
+    const useLocalUpload = process.env.NEXT_PUBLIC_USE_LOCAL_UPLOAD === "true";
+
+    return new Promise((resolve, reject) => {
+      if (useLocalUpload) {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("contactId", activeChatId);
+
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", "/api/chat/upload", true);
+        
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            const progress = (event.loaded / event.total) * 100;
+            setModalUploadProgress(Math.round(progress));
+          }
+        };
+
+        xhr.onload = () => {
+          setModalUploading(false);
+          setModalUploadProgress(0);
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const result = JSON.parse(xhr.responseText);
+              if (result.success) {
+                resolve(result.url);
+              } else {
+                reject(new Error(result.error || "Local upload failed"));
+              }
+            } catch (err: any) {
+              reject(new Error("Failed to parse local upload response: " + err.message));
+            }
+          } else {
+            reject(new Error(`Local upload failed with status code: ${xhr.status}`));
+          }
+        };
+
+        xhr.onerror = () => {
+          setModalUploading(false);
+          setModalUploadProgress(0);
+          reject(new Error("Network error occurred during local upload"));
+        };
+
+        xhr.send(formData);
+      } else {
+        try {
+          const cleanName = getCleanFileName(file.name);
+          const storageRef = ref(storage, `attachments_${activeChatId}_${Date.now()}_${cleanName}`);
+          
+          const metadata = {
+            contentDisposition: `inline; filename="${cleanName}"`,
+            contentType: file.type
+          };
+
+          const uploadTask = uploadBytesResumable(storageRef, file, metadata);
+          
+          uploadTask.on('state_changed', 
+            (snapshot) => {
+              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+              setModalUploadProgress(Math.round(progress));
+            }, 
+            (error) => {
+              console.error("Upload failed:", error);
+              setModalUploading(false);
+              setModalUploadProgress(0);
+              reject(error);
+            }, 
+            async () => {
+              try {
+                const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                resolve(downloadURL);
+              } catch (err: any) {
+                reject(err);
+              } finally {
+                setModalUploading(false);
+                setModalUploadProgress(0);
+              }
+            }
+          );
+        } catch (err: any) {
+          setModalUploading(false);
+          setModalUploadProgress(0);
+          reject(err);
+        }
+      }
+    });
+  };
+
+  const executeSendTemplate = async (
+    template: { name: string; text: string; templateSid: string }, 
+    variables: Record<string, string>
+  ) => {
     setIsSendingTemplate(true);
     const contentVariables: Record<string, string> = {};
     let textWithVars = template.text;
+    let mediaUrlToSend: string | undefined;
+    let mediaTypeToSend: string | undefined;
 
-    if (template.templateSid === "HX0f7cde84a9b825505fc6a3a608c2a3be") {
+    if (template.templateSid === "HX0f7cde84a9b825505fc6a3a608c2a3be" && !variables["1"]) {
       const brochureUrl = "https://cdn.clyrix.com/drive/rscg_company_profile.pdf";
       contentVariables["1"] = brochureUrl;
       textWithVars = textWithVars.replace(/\{\{[^}]+\}\}/g, brochureUrl);
+      mediaUrlToSend = brochureUrl;
+      mediaTypeToSend = "application/pdf";
     } else {
-      contentVariables["1"] = clientName;
-      textWithVars = textWithVars.replace(/\{\{[^}]+\}\}/g, clientName);
+      Object.entries(variables).forEach(([key, val]) => {
+        contentVariables[key] = val;
+        const escapedKey = key.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+        const regex = new RegExp(`\\{\\{\\s*${escapedKey}\\s*\\}\\}`, 'g');
+        textWithVars = textWithVars.replace(regex, val);
+
+        const isMedia = key.toLowerCase().includes("pdf") || key.toLowerCase().includes("url") || key.toLowerCase().includes("link") || key.toLowerCase().includes("file") || key === "1";
+        if (isMedia && val && val.startsWith("http")) {
+          mediaUrlToSend = val;
+          mediaTypeToSend = val.toLowerCase().includes(".pdf") ? "application/pdf" : "image";
+        }
+      });
     }
 
     try {
@@ -1073,6 +1207,8 @@ export default function ChatApp() {
           templateSid: template.templateSid,
           contentVariables,
           senderName: currentUser ? currentUser.name : "Staff",
+          mediaUrl: mediaUrlToSend,
+          mediaType: mediaTypeToSend,
         }),
       });
       const result = await response.json();
@@ -1086,53 +1222,76 @@ export default function ChatApp() {
     }
   };
 
-  const handleConfirmName = async () => {
-    if (!promptTemplate || !promptedName.trim()) return;
-    const finalName = promptedName.trim();
-    setShowNamePrompt(false);
+  const handleConfirmVariables = async () => {
+    if (!promptTemplate) return;
+    setShowVariablePrompt(false);
 
-    try {
-      const contactRef = doc(db, "contacts", activeChatId);
-      await updateDoc(contactRef, { name: finalName });
-      
-      // Update local contacts state immediately
-      setContacts((prevContacts) =>
-        prevContacts.map((c) => (c.id === activeChatId ? { ...c, name: finalName } : c))
-      );
-    } catch (e) {
-      console.error("Failed to update contact name in Firestore:", e);
+    // If we updated the customer name and the current contact name is a phone number (or empty), update it
+    const activeContact = sortedContacts.find((c) => c.id === activeChatId) || contacts.find((c) => c.id === activeChatId);
+    const hasName = activeContact && !/^\+?\d+$/.test(activeContact.name.replace(/\s+/g, ""));
+    const enteredName = promptedVariables["Client Name"] || promptedVariables["1"] || "";
+    if (enteredName.trim() && !hasName) {
+      const finalName = enteredName.trim();
+      try {
+        const contactRef = doc(db, "contacts", activeChatId);
+        await updateDoc(contactRef, { name: finalName });
+        setContacts((prevContacts) =>
+          prevContacts.map((c) => (c.id === activeChatId ? { ...c, name: finalName } : c))
+        );
+      } catch (e) {
+        console.error("Failed to update contact name in Firestore:", e);
+      }
     }
 
-    await executeSendTemplate(promptTemplate, finalName);
+    await executeSendTemplate(promptTemplate, promptedVariables);
     setPromptTemplate(null);
-    setPromptedName("");
+    setPromptedVariables({});
   };
 
-  const handleSendTemplate = async (template: { name: string; text: string; templateSid: string }) => {
-    setIsSendingTemplate(true);
+  const handleSendTemplate = async (template: { id?: string; name: string; text: string; templateSid: string; brochureLink?: string; buttons?: string[] }) => {
     setShowTemplateDropdown(false);
 
     // Find active contact's name
     const activeContact = sortedContacts.find((c) => c.id === activeChatId) || contacts.find((c) => c.id === activeChatId);
-    let clientName = "Customer";
-    let isPhone = true;
+    let clientName = "";
     if (activeContact) {
-      isPhone = /^\+?\d+$/.test(activeContact.name.replace(/\s+/g, ""));
-      clientName = isPhone ? "Customer" : activeContact.name;
+      const isPhone = /^\+?\d+$/.test(activeContact.name.replace(/\s+/g, ""));
+      clientName = isPhone ? "" : activeContact.name;
     }
 
-    const hasVariables = /\{\{[^}]+\}\}/.test(template.text);
+    const vars = getTemplateVariables(template.text);
     const isBrochure = template.templateSid === "HX0f7cde84a9b825505fc6a3a608c2a3be";
 
-    if (hasVariables && !isBrochure && isPhone) {
-      setPromptTemplate(template);
-      setPromptedName("");
-      setShowNamePrompt(true);
-      setIsSendingTemplate(false);
+    // Case 1: No variables or brochure template (auto-filled)
+    if (vars.length === 0 || isBrochure) {
+      const variablesMap: Record<string, string> = {};
+      if (isBrochure) {
+        const brochureUrl = template.brochureLink || "https://cdn.clyrix.com/drive/rscg_company_profile.pdf";
+        variablesMap["1"] = brochureUrl;
+      }
+      await executeSendTemplate(template, variablesMap);
       return;
     }
 
-    await executeSendTemplate(template, clientName);
+    // Case 2: Only 1 variable and it is clientName, and we have it prefilled
+    if (vars.length === 1 && (vars[0] === "1" || vars[0] === "Client Name") && clientName) {
+      await executeSendTemplate(template, { [vars[0]]: clientName });
+      return;
+    }
+
+    // Case 3: Need user input (either multiple variables or nameless simple template)
+    const initialVars: Record<string, string> = {};
+    vars.forEach(v => {
+      if (v === "1" || v === "Client Name") {
+        initialVars[v] = clientName;
+      } else {
+        initialVars[v] = "";
+      }
+    });
+
+    setPromptTemplate(template);
+    setPromptedVariables(initialVars);
+    setShowVariablePrompt(true);
   };
 
   const getMediaUrl = (url?: string) => {
@@ -3232,8 +3391,8 @@ export default function ChatApp() {
         </div>
       </div>
 
-      {/* Name Prompt Modal */}
-      {showNamePrompt && (
+      {/* Template Variables Config Modal */}
+      {showVariablePrompt && promptTemplate && (
         <div style={{
           position: "fixed",
           top: 0,
@@ -3250,57 +3409,336 @@ export default function ChatApp() {
           <div style={{
             backgroundColor: "#fff",
             borderRadius: "16px",
-            width: "400px",
-            padding: "24px",
-            boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)",
+            width: "900px",
+            maxWidth: "95%",
+            maxHeight: "90vh",
             display: "flex",
             flexDirection: "column",
-            gap: "16px",
+            boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)",
+            overflow: "hidden"
           }}>
-            <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 600, color: "#0f172a" }}>
-              Enter Customer Details
-            </h3>
-            <p style={{ margin: 0, fontSize: "13px", color: "#64748b", lineHeight: 1.5 }}>
-              Template requires the customer name, but currently this chat is only identified by a phone number.
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-              <label style={{ fontSize: "12px", fontWeight: 600, color: "#475569" }}>
-                Customer Name
-              </label>
-              <input
-                type="text"
-                value={promptedName}
-                onChange={(e) => setPromptedName(e.target.value)}
-                placeholder="e.g. John Doe"
-                autoFocus
-                style={{
-                  padding: "10px 12px",
-                  borderRadius: "8px",
-                  border: "1px solid #cbd5e1",
-                  fontSize: "14px",
-                  outline: "none",
-                  width: "100%",
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    handleConfirmName();
-                  }
-                }}
-              />
-            </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "8px" }}>
+            {/* Modal Header */}
+            <div style={{
+              padding: "18px 24px",
+              borderBottom: "1px solid #f1f5f9",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 600, color: "#0f172a" }}>
+                  Configure Template Variables
+                </h3>
+                <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px" }}>
+                  Template: <span style={{ fontWeight: 600, color: "#475569" }}>{promptTemplate.name}</span>
+                </div>
+              </div>
               <button
                 onClick={() => {
-                  setShowNamePrompt(false);
+                  setShowVariablePrompt(false);
                   setPromptTemplate(null);
-                  setPromptedName("");
+                  setPromptedVariables({});
                 }}
                 style={{
-                  padding: "8px 16px",
+                  border: "none",
+                  background: "none",
+                  fontSize: "20px",
+                  cursor: "pointer",
+                  color: "#94a3b8",
+                  padding: "4px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                &times;
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{
+              display: "flex",
+              flex: 1,
+              overflow: "hidden",
+            }}>
+              {/* Left Column: Form Inputs */}
+              <div style={{
+                flex: 1,
+                padding: "24px",
+                overflowY: "auto",
+                borderRight: "1px solid #f1f5f9",
+                display: "flex",
+                flexDirection: "column",
+                gap: "16px",
+              }}>
+                <div style={{ fontSize: "13px", color: "#475569", fontWeight: 500, marginBottom: "4px" }}>
+                  Fill in the variables required for this template:
+                </div>
+                {getTemplateVariables(promptTemplate.text).map((varName) => {
+                  const isMedia = varName.toLowerCase().includes("pdf") || varName.toLowerCase().includes("url") || varName.toLowerCase().includes("link") || varName.toLowerCase().includes("file");
+                  return (
+                    <div key={varName} style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                      <label style={{ fontSize: "12px", fontWeight: 600, color: "#475569" }}>
+                        {varName.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                      </label>
+                      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                        <input
+                          type="text"
+                          value={promptedVariables[varName] || ""}
+                          onChange={(e) => setPromptedVariables(prev => ({ ...prev, [varName]: e.target.value }))}
+                          placeholder={`Enter ${varName.replace(/_/g, ' ')}`}
+                          style={{
+                            flex: 1,
+                            padding: "10px 12px",
+                            borderRadius: "8px",
+                            border: "1px solid #cbd5e1",
+                            fontSize: "14px",
+                            outline: "none",
+                          }}
+                        />
+                        {isMedia && (
+                          <div style={{ position: "relative" }}>
+                            <input
+                              type="file"
+                              accept=".pdf,image/*"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  try {
+                                    const uploadedUrl = await uploadFileForVariable(file);
+                                    setPromptedVariables(prev => ({ ...prev, [varName]: uploadedUrl }));
+                                  } catch (err: any) {
+                                    alert("Upload failed: " + err.message);
+                                  }
+                                }
+                              }}
+                              style={{ display: "none" }}
+                              id={`file-upload-${varName}`}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => document.getElementById(`file-upload-${varName}`)?.click()}
+                              disabled={modalUploading}
+                              style={{
+                                padding: "10px 14px",
+                                borderRadius: "8px",
+                                border: "1px solid #cbd5e1",
+                                backgroundColor: "#f8fafc",
+                                color: "#475569",
+                                fontSize: "13px",
+                                fontWeight: 500,
+                                cursor: "pointer",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "6px",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "#64748b" }}>
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="17 8 12 3 7 8"></polyline>
+                                <line x1="12" y1="3" x2="12" y2="15"></line>
+                              </svg>
+                              {modalUploading ? "Uploading..." : "Upload File"}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+                {modalUploading && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "4px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#64748b" }}>
+                      <span>Uploading file to cloud storage...</span>
+                      <span>{modalUploadProgress}%</span>
+                    </div>
+                    <div style={{ height: "4px", backgroundColor: "#e2e8f0", borderRadius: "2px", overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: `${modalUploadProgress}%`, backgroundColor: "#00a884", transition: "width 0.2s" }} />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Right Column: Live WhatsApp-style Preview */}
+              <div style={{
+                flex: 1,
+                padding: "24px",
+                backgroundColor: "#efeae2",
+                backgroundImage: "url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center",
+                alignItems: "center",
+                overflowY: "auto",
+              }}>
+                <div style={{ fontSize: "11px", fontWeight: 600, color: "#54656f", backgroundColor: "#fff", padding: "4px 8px", borderRadius: "6px", boxShadow: "0 1px 1px rgba(0,0,0,0.06)", marginBottom: "16px", textTransform: "uppercase" }}>
+                  Message Preview
+                </div>
+                <div style={{
+                  backgroundColor: "#d9fdd3",
                   borderRadius: "8px",
-                  border: "1px solid #e2e8f0",
-                  backgroundColor: "transparent",
-                  color: "#64748b",
+                  padding: "12px",
+                  maxWidth: "420px",
+                  boxShadow: "0 1px 0.5px rgba(0,0,0,0.13)",
+                  position: "relative",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "4px",
+                  alignSelf: "flex-end"
+                }}>
+                  {/* WhatsApp speech bubble tail */}
+                  <div style={{
+                    position: "absolute",
+                    top: 0,
+                    right: "-8px",
+                    width: 0,
+                    height: 0,
+                    borderTop: "8px solid #d9fdd3",
+                    borderRight: "8px solid transparent",
+                  }} />
+
+                  <div style={{ 
+                    fontSize: "14.2px", 
+                    color: "#111b21", 
+                    whiteSpace: "pre-wrap", 
+                    lineHeight: "1.4",
+                    wordBreak: "break-word"
+                  }}>
+                    {(() => {
+                      const text = promptTemplate.text;
+                      const parts: React.ReactNode[] = [];
+                      const regex = /(\{\{\s*([a-zA-Z0-9_\-\s]+)\s*\}\})/g;
+                      let lastIndex = 0;
+                      let match;
+                      
+                      while ((match = regex.exec(text)) !== null) {
+                        const startIndex = match.index;
+                        const varName = match[2].trim();
+                        
+                        // Push text before match
+                        if (startIndex > lastIndex) {
+                          parts.push(text.substring(lastIndex, startIndex));
+                        }
+                        
+                        // Highlight filled or unfilled variable
+                        const value = promptedVariables[varName];
+                        if (value && value.trim()) {
+                          parts.push(
+                            <span key={startIndex} style={{
+                              backgroundColor: "rgba(0, 168, 132, 0.15)",
+                              borderBottom: "2px solid #00a884",
+                              color: "#00a884",
+                              fontWeight: "600",
+                              padding: "0 2px",
+                              borderRadius: "2px"
+                            }}>
+                              {value}
+                            </span>
+                          );
+                        } else {
+                          parts.push(
+                            <span key={startIndex} style={{
+                              backgroundColor: "rgba(239, 68, 68, 0.15)",
+                              borderBottom: "2px solid #ef4444",
+                              color: "#ef4444",
+                              fontWeight: "600",
+                              padding: "0 2px",
+                              borderRadius: "2px"
+                            }}>
+                              [{varName}]
+                            </span>
+                          );
+                        }
+                        
+                        lastIndex = regex.lastIndex;
+                      }
+                      
+                      if (lastIndex < text.length) {
+                        parts.push(text.substring(lastIndex));
+                      }
+                      
+                      return parts.length > 0 ? parts : text;
+                    })()}
+                  </div>
+
+                  <div style={{
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    alignItems: "center",
+                    gap: "4px",
+                    marginTop: "2px"
+                  }}>
+                    <span style={{ fontSize: "11px", color: "#667781" }}>
+                      {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    <svg viewBox="0 0 16 15" width="16" height="15" fill="#53bdeb">
+                      <path d="M15.01 3.316l-.478-.372a.365.365 0 0 0-.51.063L8.666 9.879a.32.32 0 0 1-.484.033L5.438 7.525a.36.36 0 0 0-.51.01l-.46.478a.362.362 0 0 0 .007.512l3.411 3.238c.143.136.376.13.513-.013l6.56-7.424a.372.372 0 0 0-.057-.51zm-4.218 0l-.478-.372a.365.365 0 0 0-.51.063L4.446 9.879a.32.32 0 0 1-.484.033L1.218 7.525a.36.36 0 0 0-.51.01l-.46.478a.362.362 0 0 0 .007.512l3.411 3.238c.143.136.376.13.513-.013l6.56-7.424a.372.372 0 0 0-.057-.51z" />
+                    </svg>
+                  </div>
+                </div>
+
+                {/* Quick Reply Buttons Preview */}
+                {promptTemplate.buttons && promptTemplate.buttons.length > 0 && (
+                  <div style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '8px',
+                    marginTop: '8px',
+                    width: '100%',
+                    maxWidth: "420px",
+                    justifyContent: 'flex-end',
+                    alignSelf: 'flex-end'
+                  }}>
+                    {promptTemplate.buttons.map((btnText, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          backgroundColor: '#fff',
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '18px',
+                          padding: '6px 14px',
+                          fontSize: '12px',
+                          fontWeight: '500',
+                          color: '#0284c7',
+                          boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                        }}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                        </svg>
+                        {btnText}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              padding: "16px 24px",
+              borderTop: "1px solid #f1f5f9",
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: "12px",
+              backgroundColor: "#f8fafc",
+            }}>
+              <button
+                onClick={() => {
+                  setShowVariablePrompt(false);
+                  setPromptTemplate(null);
+                  setPromptedVariables({});
+                }}
+                style={{
+                  padding: "10px 20px",
+                  borderRadius: "8px",
+                  border: "1px solid #cbd5e1",
+                  backgroundColor: "#fff",
+                  color: "#475569",
                   fontSize: "13px",
                   fontWeight: 500,
                   cursor: "pointer",
@@ -3309,19 +3747,29 @@ export default function ChatApp() {
                 Cancel
               </button>
               <button
-                onClick={handleConfirmName}
+                onClick={handleConfirmVariables}
+                disabled={modalUploading}
                 style={{
-                  padding: "8px 16px",
+                  padding: "10px 20px",
                   borderRadius: "8px",
                   border: "none",
                   backgroundColor: "#00a884",
                   color: "#fff",
                   fontSize: "13px",
-                  fontWeight: 500,
-                  cursor: "pointer",
+                  fontWeight: 600,
+                  cursor: modalUploading ? "not-allowed" : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  opacity: modalUploading ? 0.7 : 1,
+                  boxShadow: "0 2px 4px rgba(0, 168, 132, 0.2)"
                 }}
               >
-                Send Template
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13"></line>
+                  <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+                Send Message
               </button>
             </div>
           </div>

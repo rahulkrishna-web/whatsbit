@@ -81,6 +81,13 @@ export async function GET() {
       body: "Hi {{Client Name}},\n\nHope you've had a chance to review the materials we shared! 👋\n\nI'm here to help with any questions about:\n- Plant design & customization for your needs\n- Investment & timeline details\n- Technical specifications\n- Next steps\n\nWhat would help you most right now?",
       language: "en",
       status: "approved"
+    },
+    {
+      sid: "HX58cd8aa67a890587d506da408de3f01e",
+      friendlyName: "Detailed Quotation",
+      body: "Hi {{Client Name}},\n\nThank you for sharing your requirements for a {{Plant Name}}!\n\nBased on our discussion, I've prepared a comprehensive quotation that includes:\n\n✅ Complete turnkey plant design for {{capacity}} TPD capacity\n✅ Equipment list with technical specifications\n✅ All applicable Choyal services for your plant\n\nPlease find attached our detailed quotation & technical proposal:\n📄 {{ quotation_pdf }}\n\nOur next steps typically include:\n🏗️ Technical discussion with our engineering team\n📈 Final proposal with timeline & payment schedule",
+      language: "en",
+      status: "approved"
     }
   ];
 
