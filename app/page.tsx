@@ -743,10 +743,16 @@ export default function ChatApp() {
   };
 
   const isAutomationAllowed = useMemo(() => {
+    // Open flow and marketing tab for all for now, as requested.
+    // We still wait for currentUser to be loaded to avoid UI glitches before initialization.
     if (!currentUser) return false;
+    return true;
+
+    /*
     if (currentUser.id === "5336") return true; // Superadmin bypass
     if (currentUser.isAdmin) return true; // Portal administrators always allowed
     return allowedStaffIds.includes(currentUser.id);
+    */
   }, [currentUser, allowedStaffIds]);
 
   const renderAccessRestricted = () => (
