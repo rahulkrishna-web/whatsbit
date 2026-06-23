@@ -1261,7 +1261,7 @@ export default function ChatApp() {
         const regex = new RegExp(`\\{\\{\\s*${escapedKey}\\s*\\}\\}`, 'g');
         textWithVars = textWithVars.replace(regex, val);
 
-        const isMedia = key.toLowerCase().includes("pdf") || key.toLowerCase().includes("url") || key.toLowerCase().includes("link") || key.toLowerCase().includes("file") || key === "1";
+        const isMedia = key.toLowerCase().includes("pdf") || key.toLowerCase().includes("url") || key.toLowerCase().includes("link") || key.toLowerCase().includes("file") || (key === "1" && template.templateSid === "HX0f7cde84a9b825505fc6a3a608c2a3be");
         if (isMedia && val && val.startsWith("http")) {
           mediaUrlToSend = val;
           mediaTypeToSend = val.toLowerCase().includes(".pdf") ? "application/pdf" : "image";
@@ -1302,7 +1302,14 @@ export default function ChatApp() {
     // If we updated the customer name and the current contact name is a phone number (or empty), update it
     const activeContact = sortedContacts.find((c) => c.id === activeChatId) || contacts.find((c) => c.id === activeChatId);
     const hasName = activeContact && !/^\+?\d+$/.test(activeContact.name.replace(/\s+/g, ""));
-    const enteredName = promptedVariables["Client Name"] || promptedVariables["1"] || "";
+    
+    // Check if there's any client name variable input
+    const clientNameKey = Object.keys(promptedVariables).find(k => {
+      const kl = k.toLowerCase().trim();
+      return kl === "1" || kl === "client name" || kl === "client_name";
+    });
+    const enteredName = clientNameKey ? promptedVariables[clientNameKey] : "";
+
     if (enteredName.trim() && !hasName) {
       const finalName = enteredName.trim();
       try {
@@ -1335,27 +1342,12 @@ export default function ChatApp() {
     const vars = getTemplateVariables(template.text);
     const isBrochure = template.templateSid === "HX0f7cde84a9b825505fc6a3a608c2a3be";
 
-    // Case 1: No variables or brochure template (auto-filled)
-    if (vars.length === 0 || isBrochure) {
-      const variablesMap: Record<string, string> = {};
-      if (isBrochure) {
-        const brochureUrl = template.brochureLink || "https://cdn.clyrix.com/drive/rscg_company_profile.pdf";
-        variablesMap["1"] = brochureUrl;
-      }
-      await executeSendTemplate(template, variablesMap);
-      return;
-    }
-
-    // Case 2: Only 1 variable and it is clientName, and we have it prefilled
-    if (vars.length === 1 && (vars[0] === "1" || vars[0] === "Client Name") && clientName) {
-      await executeSendTemplate(template, { [vars[0]]: clientName });
-      return;
-    }
-
-    // Case 3: Need user input (either multiple variables or nameless simple template)
     const initialVars: Record<string, string> = {};
     vars.forEach(v => {
-      if (v === "1" || v === "Client Name") {
+      const vLower = v.toLowerCase().trim();
+      if (isBrochure && v === "1") {
+        initialVars[v] = template.brochureLink || "https://cdn.clyrix.com/drive/rscg_company_profile.pdf";
+      } else if (vLower === "1" || vLower === "client name" || vLower === "client_name") {
         initialVars[v] = clientName;
       } else {
         initialVars[v] = "";
@@ -3529,7 +3521,7 @@ export default function ChatApp() {
             }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 600, color: "#0f172a" }}>
-                  Configure Template Variables
+                  Confirm Template Message
                 </h3>
                 <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px" }}>
                   Template: <span style={{ fontWeight: 600, color: "#475569" }}>{promptTemplate.name}</span>
@@ -3573,102 +3565,136 @@ export default function ChatApp() {
                 flexDirection: "column",
                 gap: "16px",
               }}>
-                <div style={{ fontSize: "13px", color: "#475569", fontWeight: 500, marginBottom: "4px" }}>
-                  Fill in the variables required for this template:
-                </div>
-                {getTemplateVariables(promptTemplate.text).map((varName) => {
-                  const isMedia = varName.toLowerCase().includes("pdf") || varName.toLowerCase().includes("url") || varName.toLowerCase().includes("link") || varName.toLowerCase().includes("file");
-                  return (
-                    <div key={varName} style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                      <label style={{ fontSize: "12px", fontWeight: 600, color: "#475569" }}>
-                        {varName.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                      </label>
-                      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                        <input
-                          type="text"
-                          value={promptedVariables[varName] || ""}
-                          onChange={(e) => setPromptedVariables(prev => ({ ...prev, [varName]: e.target.value }))}
-                          placeholder={`Enter ${varName.replace(/_/g, ' ')}`}
-                          style={{
-                            flex: 1,
-                            padding: "10px 12px",
-                            borderRadius: "8px",
-                            border: "1px solid #cbd5e1",
-                            fontSize: "14px",
-                            outline: "none",
-                          }}
-                        />
-                        {isMedia && (
-                          <div style={{ position: "relative" }}>
+                {getTemplateVariables(promptTemplate.text).length === 0 ? (
+                  <div style={{ 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    height: '100%', 
+                    color: '#64748b', 
+                    textAlign: 'center',
+                    gap: '12px',
+                    padding: '40px 20px'
+                  }}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#94a3b8' }}>
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="12" y1="16" x2="12" y2="12"></line>
+                      <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                    </svg>
+                    <div style={{ fontSize: '14px', fontWeight: 500, color: '#475569' }}>
+                      No variables required
+                    </div>
+                    <div style={{ fontSize: '12px', lineHeight: '1.5' }}>
+                      This template is static. Review the WhatsApp message preview on the right and click "Send Message" to send it.
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ fontSize: "13px", color: "#475569", fontWeight: 500, marginBottom: "4px" }}>
+                      Fill in the variables required for this template:
+                    </div>
+                    {getTemplateVariables(promptTemplate.text).map((varName) => {
+                      const isBrochureVar1 = promptTemplate.templateSid === "HX0f7cde84a9b825505fc6a3a608c2a3be" && varName === "1";
+                      const isMedia = varName.toLowerCase().includes("pdf") || varName.toLowerCase().includes("url") || varName.toLowerCase().includes("link") || varName.toLowerCase().includes("file") || isBrochureVar1;
+                      
+                      return (
+                        <div key={varName} style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                          <label style={{ fontSize: "12px", fontWeight: 600, color: "#475569" }}>
+                            {isBrochureVar1 
+                              ? "Brochure PDF Link" 
+                              : varName === "1" 
+                                ? "Client Name" 
+                                : varName.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                          </label>
+                          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                             <input
-                              type="file"
-                              accept=".pdf,image/*"
-                              onChange={async (e) => {
-                                const file = e.target.files?.[0];
-                                if (file) {
-                                  try {
-                                    const uploadedUrl = await uploadFileForVariable(file);
-                                    setPromptedVariables(prev => ({ ...prev, [varName]: uploadedUrl }));
-                                  } catch (err: any) {
-                                    alert("Upload failed: " + err.message);
-                                  }
-                                }
-                              }}
-                              style={{ display: "none" }}
-                              id={`file-upload-${varName}`}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => document.getElementById(`file-upload-${varName}`)?.click()}
-                              disabled={modalUploading}
+                              type="text"
+                              value={promptedVariables[varName] || ""}
+                              onChange={(e) => setPromptedVariables(prev => ({ ...prev, [varName]: e.target.value }))}
+                              placeholder={isBrochureVar1 ? "Enter or upload brochure PDF URL" : `Enter ${varName === "1" ? "client name" : varName.replace(/_/g, ' ')}`}
                               style={{
-                                padding: "10px 14px",
+                                flex: 1,
+                                padding: "10px 12px",
                                 borderRadius: "8px",
                                 border: "1px solid #cbd5e1",
-                                backgroundColor: "#f8fafc",
-                                color: "#475569",
-                                fontSize: "13px",
-                                fontWeight: 500,
+                                fontSize: "14px",
+                                outline: "none",
+                              }}
+                            />
+                            {isMedia && (
+                              <div style={{ position: "relative" }}>
+                                <input
+                                  type="file"
+                                  accept=".pdf,image/*"
+                                  onChange={async (e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                      try {
+                                        const uploadedUrl = await uploadFileForVariable(file);
+                                        setPromptedVariables(prev => ({ ...prev, [varName]: uploadedUrl }));
+                                      } catch (err: any) {
+                                        alert("Upload failed: " + err.message);
+                                      }
+                                    }
+                                  }}
+                                  style={{ display: "none" }}
+                                  id={`file-upload-${varName}`}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => document.getElementById(`file-upload-${varName}`)?.click()}
+                                  disabled={modalUploading}
+                                  style={{
+                                    padding: "10px 14px",
+                                    borderRadius: "8px",
+                                    border: "1px solid #cbd5e1",
+                                    backgroundColor: "#f8fafc",
+                                    color: "#475569",
+                                    fontSize: "13px",
+                                    fontWeight: 500,
+                                    cursor: "pointer",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "6px",
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "#64748b" }}>
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="17 8 12 3 7 8"></polyline>
+                                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                                  </svg>
+                                  {modalUploading ? "Uploading..." : "Upload File"}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                          {promptedVariables[varName] && promptedVariables[varName].includes("/link/") && (
+                            <button
+                              type="button"
+                              onClick={() => handleCustomLinkAlias(varName, promptedVariables[varName])}
+                              style={{
+                                alignSelf: "flex-start",
+                                fontSize: "11px",
+                                color: "#00a884",
+                                backgroundColor: "transparent",
+                                border: "none",
                                 cursor: "pointer",
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "6px",
-                                whiteSpace: "nowrap",
+                                padding: "2px 0",
+                                fontWeight: 500,
+                                textDecoration: "underline",
+                                marginTop: "2px"
                               }}
                             >
-                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "#64748b" }}>
-                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                <polyline points="17 8 12 3 7 8"></polyline>
-                                <line x1="12" y1="3" x2="12" y2="15"></line>
-                              </svg>
-                              {modalUploading ? "Uploading..." : "Upload File"}
+                              Customize link handle
                             </button>
-                          </div>
-                        )}
-                      </div>
-                      {promptedVariables[varName] && promptedVariables[varName].includes("/link/") && (
-                        <button
-                          type="button"
-                          onClick={() => handleCustomLinkAlias(varName, promptedVariables[varName])}
-                          style={{
-                            alignSelf: "flex-start",
-                            fontSize: "11px",
-                            color: "#00a884",
-                            backgroundColor: "transparent",
-                            border: "none",
-                            cursor: "pointer",
-                            padding: "2px 0",
-                            fontWeight: 500,
-                            textDecoration: "underline",
-                            marginTop: "2px"
-                          }}
-                        >
-                          Customize link handle
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
+                          )}
+                        </div>
+                      );
+                    })}
+                  </>
+                )}
                 {modalUploading && (
                   <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "4px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#64748b" }}>
