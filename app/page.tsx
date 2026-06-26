@@ -3659,7 +3659,8 @@ export default function ChatApp() {
                     </div>
                     {getTemplateVariables(promptTemplate.text).map((varName) => {
                       const isBrochureVar1 = promptTemplate.templateSid === "HX0f7cde84a9b825505fc6a3a608c2a3be" && varName === "1";
-                      const isMedia = varName.toLowerCase().includes("pdf") || varName.toLowerCase().includes("url") || varName.toLowerCase().includes("link") || varName.toLowerCase().includes("file") || isBrochureVar1;
+                      const isVideoVar = varName.toLowerCase().includes("video") || varName.toLowerCase() === "link";
+                      const isMedia = (varName.toLowerCase().includes("pdf") || varName.toLowerCase().includes("url") || varName.toLowerCase().includes("link") || varName.toLowerCase().includes("file") || isBrochureVar1) && !isVideoVar;
                       
                       return (
                         <div key={varName} style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
@@ -3675,7 +3676,7 @@ export default function ChatApp() {
                               type="text"
                               value={promptedVariables[varName] || ""}
                               onChange={(e) => setPromptedVariables(prev => ({ ...prev, [varName]: e.target.value }))}
-                              placeholder={isBrochureVar1 ? "Enter or upload brochure PDF URL" : `Enter ${varName === "1" ? "client name" : varName.replace(/_/g, ' ')}`}
+                              placeholder={isBrochureVar1 ? "Enter or upload brochure PDF URL" : (isMedia ? `Enter or upload ${varName.replace(/_/g, ' ')}` : `Enter ${varName === "1" ? "client name" : varName.replace(/_/g, ' ')}`)}
                               style={{
                                 flex: 1,
                                 padding: "10px 12px",
