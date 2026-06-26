@@ -88,6 +88,27 @@ export async function GET() {
       body: "Hi {{Client Name}},\n\nThank you for sharing your requirements for a {{Plant Name}}!\n\nBased on our discussion, I've prepared a comprehensive quotation that includes:\n\n✅ Complete turnkey plant design for {{capacity}} TPD capacity\n✅ Equipment list with technical specifications\n✅ All applicable Choyal services for your plant\n\nPlease find attached our detailed quotation & technical proposal:\n📄 {{ quotation_pdf }}\n\nOur next steps typically include:\n🏗️ Technical discussion with our engineering team\n📈 Final proposal with timeline & payment schedule",
       language: "en",
       status: "approved"
+    },
+    {
+      sid: "HX342f8005ee058ec84fd1292a8ed4c1df",
+      friendlyName: "rscg_send_quote_v2",
+      body: "Hi {{Client Name}},\n\nThank you for sharing your requirements for a {{Plant Name}} !\n\nBased on our discussion, I've prepared a comprehensive quotation that includes:\n\n✅ Complete turnkey plant design for {{capacity}} capacity\n✅ Equipment list with technical specifications\n✅ All applicable Choyal services for your plant\n\nPlease find attached our detailed quotation & technical proposal:\n📄 {{ quotation_pdf }}\n\n{{ Video link }}\n\nOur next steps typically include:\n🏭 Technical discussion with our engineering team\n✍️ Final proposal with timeline & payment schedule",
+      language: "en",
+      status: "approved"
+    },
+    {
+      sid: "HX7f33892f9e727e9dcca5d9e0bb1c6e03",
+      friendlyName: "rscg_brochurev2",
+      body: "Hi {{Customer Name}},\n\nAs discussed, sharing the relevant brochure/files for your reference:\n{{File/Brochure Name}}\n{{File/Brochure Name}}\n{{File/Brochure Name}}\n\nThese will help you understand the machine specifications, features, and available solutions better.\n\nPlease go through them whenever convenient. Let me know if you have any questions or if you’d like us to suggest the most suitable option based on your requirement.\n\nRegards,\nRS Choyal Group",
+      language: "en",
+      status: "approved"
+    },
+    {
+      sid: "HX50cc64c06df72fb4cc6b5c5126794733",
+      friendlyName: "rscg_videolinks",
+      body: "Hi {{Customer Name}},\n\nAs discussed, sharing the video links for your reference:\n{{Video Title}} – {{Link}}\n{{Video Title}} – {{Link}}\n{{Video Title}} – {{Link}}\nPlease go through them whenever convenient. Let me know if you have any questions or would like us to explain anything in detail.\n\nRegards,\nRS Choyal Group",
+      language: "en",
+      status: "approved"
     }
   ];
 

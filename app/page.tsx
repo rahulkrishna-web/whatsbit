@@ -159,6 +159,24 @@ const PREDEFINED_TEMPLATES = [
     name: "Detailed Quotation",
     text: "Hi {{Client Name}},\n\nThank you for sharing your requirements for a {{Plant Name}}!\n\nBased on our discussion, I've prepared a comprehensive quotation that includes:\n\n✅ Complete turnkey plant design for {{capacity}} TPD capacity\n✅ Equipment list with technical specifications\n✅ All applicable Choyal services for your plant\n\nPlease find attached our detailed quotation & technical proposal:\n📄 {{ quotation_pdf }}\n\nOur next steps typically include:\n🏗️ Technical discussion with our engineering team\n📈 Final proposal with timeline & payment schedule",
     templateSid: "HX58cd8aa67a890587d506da408de3f01e"
+  },
+  {
+    id: "send_quote_v2",
+    name: "Send Quote V2",
+    text: "Hi {{Client Name}},\n\nThank you for sharing your requirements for a {{Plant Name}} !\n\nBased on our discussion, I've prepared a comprehensive quotation that includes:\n\n✅ Complete turnkey plant design for {{capacity}} capacity\n✅ Equipment list with technical specifications\n✅ All applicable Choyal services for your plant\n\nPlease find attached our detailed quotation & technical proposal:\n📄 {{ quotation_pdf }}\n\n{{ Video link }}\n\nOur next steps typically include:\n🏭 Technical discussion with our engineering team\n✍️ Final proposal with timeline & payment schedule",
+    templateSid: "HX342f8005ee058ec84fd1292a8ed4c1df"
+  },
+  {
+    id: "send_brochure_v2",
+    name: "Send Brochure V2",
+    text: "Hi {{Customer Name}},\n\nAs discussed, sharing the relevant brochure/files for your reference:\n{{File/Brochure Name}}\n{{File/Brochure Name}}\n{{File/Brochure Name}}\n\nThese will help you understand the machine specifications, features, and available solutions better.\n\nPlease go through them whenever convenient. Let me know if you have any questions or if you’d like us to suggest the most suitable option based on your requirement.\n\nRegards,\nRS Choyal Group",
+    templateSid: "HX7f33892f9e727e9dcca5d9e0bb1c6e03"
+  },
+  {
+    id: "send_video_links",
+    name: "Send Video Links",
+    text: "Hi {{Customer Name}},\n\nAs discussed, sharing the video links for your reference:\n{{Video Title}} – {{Link}}\n{{Video Title}} – {{Link}}\n{{Video Title}} – {{Link}}\nPlease go through them whenever convenient. Let me know if you have any questions or would like us to explain anything in detail.\n\nRegards,\nRS Choyal Group",
+    templateSid: "HX50cc64c06df72fb4cc6b5c5126794733"
   }
 ];
 
@@ -1248,23 +1266,47 @@ export default function ChatApp() {
     let mediaUrlToSend: string | undefined;
     let mediaTypeToSend: string | undefined;
 
-    if (template.templateSid === "HX0f7cde84a9b825505fc6a3a608c2a3be" && !variables["1"]) {
+    // Build variables with defaults if they are empty
+    const varsWithDefaults = { ...variables };
+    if (template.templateSid === "HX7f33892f9e727e9dcca5d9e0bb1c6e03" && !varsWithDefaults["File/Brochure Name"]) {
+      varsWithDefaults["File/Brochure Name"] = "https://cdn.clyrix.com/drive/rscg_company_profile.pdf";
+    }
+    if (template.templateSid === "HX342f8005ee058ec84fd1292a8ed4c1df") {
+      if (!varsWithDefaults["quotation_pdf"]) varsWithDefaults["quotation_pdf"] = "https://cdn.clyrix.com/drive/rscg_company_profile.pdf";
+      if (!varsWithDefaults["Video link"]) varsWithDefaults["Video link"] = "https://www.youtube.com/watch?v=DlEcmcDS598";
+    }
+    if (template.templateSid === "HX50cc64c06df72fb4cc6b5c5126794733") {
+      if (!varsWithDefaults["Link"]) varsWithDefaults["Link"] = "https://www.youtube.com/watch?v=9lL6GacMf5I";
+      if (!varsWithDefaults["Video Title"]) varsWithDefaults["Video Title"] = "Scaling Your Flour Mill";
+    }
+
+    if (template.templateSid === "HX0f7cde84a9b825505fc6a3a608c2a3be" && !varsWithDefaults["1"]) {
       const brochureUrl = "https://cdn.clyrix.com/drive/rscg_company_profile.pdf";
       contentVariables["1"] = brochureUrl;
       textWithVars = textWithVars.replace(/\{\{[^}]+\}\}/g, brochureUrl);
       mediaUrlToSend = brochureUrl;
       mediaTypeToSend = "application/pdf";
     } else {
-      Object.entries(variables).forEach(([key, val]) => {
+      Object.entries(varsWithDefaults).forEach(([key, val]) => {
         contentVariables[key] = val;
+        // Support keys with leading/trailing spaces as defined in Twilio Content templates
+        const trimmedKey = key.trim();
+        contentVariables[trimmedKey] = val;
+        contentVariables[` ${trimmedKey} `] = val;
+
         const escapedKey = key.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
         const regex = new RegExp(`\\{\\{\\s*${escapedKey}\\s*\\}\\}`, 'g');
         textWithVars = textWithVars.replace(regex, val);
 
-        const isMedia = key.toLowerCase().includes("pdf") || key.toLowerCase().includes("url") || key.toLowerCase().includes("link") || key.toLowerCase().includes("file") || (key === "1" && template.templateSid === "HX0f7cde84a9b825505fc6a3a608c2a3be");
+        const isPdfOrImg = val.toLowerCase().includes(".pdf") || val.toLowerCase().includes(".png") || val.toLowerCase().includes(".jpg") || val.toLowerCase().includes(".jpeg");
+        const isMedia = key.toLowerCase().includes("pdf") || key.toLowerCase().includes("file") || (key === "1" && template.templateSid === "HX0f7cde84a9b825505fc6a3a608c2a3be") || (isPdfOrImg && (key.toLowerCase().includes("url") || key.toLowerCase().includes("link")));
+        
         if (isMedia && val && val.startsWith("http")) {
-          mediaUrlToSend = val;
-          mediaTypeToSend = val.toLowerCase().includes(".pdf") ? "application/pdf" : "image";
+          const isPdf = val.toLowerCase().includes(".pdf");
+          if (!mediaUrlToSend || isPdf) {
+            mediaUrlToSend = val;
+            mediaTypeToSend = isPdf ? "application/pdf" : "image";
+          }
         }
       });
     }
@@ -1345,10 +1387,31 @@ export default function ChatApp() {
     const initialVars: Record<string, string> = {};
     vars.forEach(v => {
       const vLower = v.toLowerCase().trim();
+      const cleanVar = v.trim();
       if (isBrochure && v === "1") {
         initialVars[v] = template.brochureLink || "https://cdn.clyrix.com/drive/rscg_company_profile.pdf";
-      } else if (vLower === "1" || vLower === "client name" || vLower === "client_name") {
+      } else if (
+        vLower === "1" ||
+        vLower === "client name" ||
+        vLower === "client_name" ||
+        vLower === "customer name" ||
+        vLower === "customer_name"
+      ) {
         initialVars[v] = clientName;
+      } else if (cleanVar === "Video link") {
+        initialVars[v] = "https://www.youtube.com/watch?v=DlEcmcDS598";
+      } else if (cleanVar === "quotation_pdf") {
+        initialVars[v] = "https://cdn.clyrix.com/drive/rscg_company_profile.pdf";
+      } else if (cleanVar === "capacity") {
+        initialVars[v] = "100TPD";
+      } else if (cleanVar === "Plant Name") {
+        initialVars[v] = "10TPD";
+      } else if (cleanVar === "File/Brochure Name") {
+        initialVars[v] = "https://cdn.clyrix.com/drive/rscg_company_profile.pdf";
+      } else if (cleanVar === "Link") {
+        initialVars[v] = "https://www.youtube.com/watch?v=9lL6GacMf5I";
+      } else if (cleanVar === "Video Title") {
+        initialVars[v] = "Scaling Your Flour Mill";
       } else {
         initialVars[v] = "";
       }
