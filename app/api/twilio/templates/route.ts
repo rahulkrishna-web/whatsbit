@@ -97,16 +97,16 @@ export async function GET() {
       status: "approved"
     },
     {
-      sid: "HX7f33892f9e727e9dcca5d9e0bb1c6e03",
-      friendlyName: "rscg_brochurev2",
-      body: "Hi {{Customer Name}},\n\nAs discussed, sharing the relevant brochure/files for your reference:\n{{File/Brochure Name}}\n{{File/Brochure Name}}\n{{File/Brochure Name}}\n\nThese will help you understand the machine specifications, features, and available solutions better.\n\nPlease go through them whenever convenient. Let me know if you have any questions or if you’d like us to suggest the most suitable option based on your requirement.\n\nRegards,\nRS Choyal Group",
+      sid: "HX06341477cd359af1ea2d7430ae1a475d",
+      friendlyName: "rscg_brochurev3",
+      body: "Hi {{Customer Name}},\n\nAs discussed, sharing the relevant brochure/files for your reference:\n{{File/Brochure Name 1}}\n{{File/Brochure Name 2}}\n{{File/Brochure Name 3}}\n\nThese will help you understand the machine specifications, features, and available solutions better.\n\nPlease go through them whenever convenient. Let me know if you have any questions or if you’d like us to suggest the most suitable option based on your requirement.\n\nRegards,\nRS Choyal Group",
       language: "en",
       status: "approved"
     },
     {
-      sid: "HX50cc64c06df72fb4cc6b5c5126794733",
-      friendlyName: "rscg_videolinks",
-      body: "Hi {{Customer Name}},\n\nAs discussed, sharing the video links for your reference:\n{{Video Title}} – {{Link}}\n{{Video Title}} – {{Link}}\n{{Video Title}} – {{Link}}\nPlease go through them whenever convenient. Let me know if you have any questions or would like us to explain anything in detail.\n\nRegards,\nRS Choyal Group",
+      sid: "HXfaf59293187dc949ff00086943d95587",
+      friendlyName: "rscg_videolinksv2",
+      body: "Hi {{Customer Name}},\n\nAs discussed, sharing the video links for your reference:\n{{Video Title 1}} – {{Link 1}}\n{{Video Title 2}} – {{Link 2}}\n{{Video Title 3}} – {{Link 3}}\n\nPlease go through them whenever convenient. Let me know if you have any questions or would like us to explain anything in detail.\n\nRegards,\nRS Choyal Group",
       language: "en",
       status: "approved"
     }

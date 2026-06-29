@@ -169,14 +169,14 @@ const PREDEFINED_TEMPLATES = [
   {
     id: "send_brochure_v2",
     name: "Send Brochure V2",
-    text: "Hi {{Customer Name}},\n\nAs discussed, sharing the relevant brochure/files for your reference:\n{{File/Brochure Name}}\n{{File/Brochure Name}}\n{{File/Brochure Name}}\n\nThese will help you understand the machine specifications, features, and available solutions better.\n\nPlease go through them whenever convenient. Let me know if you have any questions or if you’d like us to suggest the most suitable option based on your requirement.\n\nRegards,\nRS Choyal Group",
-    templateSid: "HX7f33892f9e727e9dcca5d9e0bb1c6e03"
+    text: "Hi {{Customer Name}},\n\nAs discussed, sharing the relevant brochure/files for your reference:\n{{File/Brochure Name 1}}\n{{File/Brochure Name 2}}\n{{File/Brochure Name 3}}\n\nThese will help you understand the machine specifications, features, and available solutions better.\n\nPlease go through them whenever convenient. Let me know if you have any questions or if you’d like us to suggest the most suitable option based on your requirement.\n\nRegards,\nRS Choyal Group",
+    templateSid: "HX06341477cd359af1ea2d7430ae1a475d"
   },
   {
     id: "send_video_links",
     name: "Send Video Links",
-    text: "Hi {{Customer Name}},\n\nAs discussed, sharing the video links for your reference:\n{{Video Title}} – {{Link}}\n{{Video Title}} – {{Link}}\n{{Video Title}} – {{Link}}\nPlease go through them whenever convenient. Let me know if you have any questions or would like us to explain anything in detail.\n\nRegards,\nRS Choyal Group",
-    templateSid: "HX50cc64c06df72fb4cc6b5c5126794733"
+    text: "Hi {{Customer Name}},\n\nAs discussed, sharing the video links for your reference:\n{{Video Title 1}} – {{Link 1}}\n{{Video Title 2}} – {{Link 2}}\n{{Video Title 3}} – {{Link 3}}\n\nPlease go through them whenever convenient. Let me know if you have any questions or would like us to explain anything in detail.\n\nRegards,\nRS Choyal Group",
+    templateSid: "HXfaf59293187dc949ff00086943d95587"
   }
 ];
 
@@ -1268,17 +1268,33 @@ export default function ChatApp() {
 
     // Build variables with defaults if they are empty
     const varsWithDefaults = { ...variables };
-    if (template.templateSid === "HX7f33892f9e727e9dcca5d9e0bb1c6e03" && !varsWithDefaults["File/Brochure Name"]) {
-      varsWithDefaults["File/Brochure Name"] = "https://cdn.clyrix.com/drive/rscg_company_profile.pdf";
+    if (template.templateSid === "HX06341477cd359af1ea2d7430ae1a475d" && !varsWithDefaults["File/Brochure Name 1"]) {
+      varsWithDefaults["File/Brochure Name 1"] = "https://cdn.clyrix.com/drive/rscg_company_profile.pdf";
     }
     if (template.templateSid === "HX342f8005ee058ec84fd1292a8ed4c1df") {
       if (!varsWithDefaults["quotation_pdf"]) varsWithDefaults["quotation_pdf"] = "https://cdn.clyrix.com/drive/rscg_company_profile.pdf";
       if (!varsWithDefaults["Video link"]) varsWithDefaults["Video link"] = "https://www.youtube.com/watch?v=DlEcmcDS598";
     }
-    if (template.templateSid === "HX50cc64c06df72fb4cc6b5c5126794733") {
-      if (!varsWithDefaults["Link"]) varsWithDefaults["Link"] = "https://www.youtube.com/watch?v=9lL6GacMf5I";
-      if (!varsWithDefaults["Video Title"]) varsWithDefaults["Video Title"] = "Scaling Your Flour Mill";
+    if (template.templateSid === "HXfaf59293187dc949ff00086943d95587") {
+      if (!varsWithDefaults["Link 1"]) varsWithDefaults["Link 1"] = "https://www.youtube.com/watch?v=DlEcmcDS598";
+      if (!varsWithDefaults["Video Title 1"]) varsWithDefaults["Video Title 1"] = "Company Overview";
+      if (!varsWithDefaults["Link 2"]) varsWithDefaults["Link 2"] = "https://www.youtube.com/watch?v=OETierqPRFA";
+      if (!varsWithDefaults["Video Title 2"]) varsWithDefaults["Video Title 2"] = "How We Setup Plants";
+      if (!varsWithDefaults["Link 3"]) varsWithDefaults["Link 3"] = "https://www.youtube.com/watch?v=MjUnwkiwAvM";
+      if (!varsWithDefaults["Video Title 3"]) varsWithDefaults["Video Title 3"] = "Milling Plant Process (Hindi)";
     }
+
+    // Generic defaults for any other brochure or file variables (e.g. if they rename placeholders to Brochure 1, Brochure 2, etc.)
+    Object.keys(varsWithDefaults).forEach(key => {
+      if (!varsWithDefaults[key]) {
+        const lowerKey = key.toLowerCase();
+        if (lowerKey.includes("brochure") || lowerKey.includes("file") || lowerKey.includes("pdf")) {
+          varsWithDefaults[key] = "https://cdn.clyrix.com/drive/rscg_company_profile.pdf";
+        } else if (lowerKey.includes("video") || lowerKey === "link") {
+          varsWithDefaults[key] = "https://www.youtube.com/watch?v=DlEcmcDS598";
+        }
+      }
+    });
 
     if (template.templateSid === "HX0f7cde84a9b825505fc6a3a608c2a3be" && !varsWithDefaults["1"]) {
       const brochureUrl = "https://cdn.clyrix.com/drive/rscg_company_profile.pdf";
@@ -1406,12 +1422,20 @@ export default function ChatApp() {
         initialVars[v] = "100TPD";
       } else if (cleanVar === "Plant Name") {
         initialVars[v] = "10TPD";
-      } else if (cleanVar === "File/Brochure Name") {
+      } else if (cleanVar.toLowerCase().includes("brochure") || cleanVar.toLowerCase().includes("file") || cleanVar.toLowerCase().includes("pdf")) {
         initialVars[v] = "https://cdn.clyrix.com/drive/rscg_company_profile.pdf";
-      } else if (cleanVar === "Link") {
-        initialVars[v] = "https://www.youtube.com/watch?v=9lL6GacMf5I";
-      } else if (cleanVar === "Video Title") {
-        initialVars[v] = "Scaling Your Flour Mill";
+      } else if (cleanVar === "Link" || cleanVar === "Link 1") {
+        initialVars[v] = "https://www.youtube.com/watch?v=DlEcmcDS598";
+      } else if (cleanVar === "Link 2") {
+        initialVars[v] = "https://www.youtube.com/watch?v=OETierqPRFA";
+      } else if (cleanVar === "Link 3") {
+        initialVars[v] = "https://www.youtube.com/watch?v=MjUnwkiwAvM";
+      } else if (cleanVar === "Video Title" || cleanVar === "Video Title 1") {
+        initialVars[v] = "Company Overview";
+      } else if (cleanVar === "Video Title 2") {
+        initialVars[v] = "How We Setup Plants";
+      } else if (cleanVar === "Video Title 3") {
+        initialVars[v] = "Milling Plant Process (Hindi)";
       } else {
         initialVars[v] = "";
       }
@@ -3659,7 +3683,7 @@ export default function ChatApp() {
                     </div>
                     {getTemplateVariables(promptTemplate.text).map((varName) => {
                       const isBrochureVar1 = promptTemplate.templateSid === "HX0f7cde84a9b825505fc6a3a608c2a3be" && varName === "1";
-                      const isVideoVar = varName.toLowerCase().includes("video") || varName.toLowerCase() === "link";
+                      const isVideoVar = varName.toLowerCase().includes("video") || varName.toLowerCase().includes("link");
                       const isMedia = (varName.toLowerCase().includes("pdf") || varName.toLowerCase().includes("url") || varName.toLowerCase().includes("link") || varName.toLowerCase().includes("file") || isBrochureVar1) && !isVideoVar;
                       
                       return (
