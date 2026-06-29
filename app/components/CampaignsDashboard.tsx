@@ -235,7 +235,7 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
   }, [isCustomTemplate, customTemplateSid, selectedTemplateId]);
 
   const templateVariables = useMemo(() => {
-    const regex = /\{\{\s*([a-zA-Z0-9_\-\s]+)\s*\}\}/g;
+    const regex = /\{\{\s*([a-zA-Z0-9_\-\s\/]+)\s*\}\}/g;
     const matches: string[] = [];
     let match;
     while ((match = regex.exec(templateText)) !== null) {
@@ -1641,7 +1641,7 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
               ) : (
                 <div className={styles.templatesGrid}>
                   {filteredTemplates.map((t) => {
-                    const regex = /\{\{\s*([a-zA-Z0-9_\-\s]+)\s*\}\}/g;
+                    const regex = /\{\{\s*([a-zA-Z0-9_\-\s\/]+)\s*\}\}/g;
                     const matches: string[] = [];
                     let match;
                     while ((match = regex.exec(t.body || "")) !== null) {

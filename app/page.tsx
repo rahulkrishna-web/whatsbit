@@ -217,7 +217,7 @@ export default function ChatApp() {
 
   const getTemplateVariables = (text: string): string[] => {
     if (!text) return [];
-    const regex = /\{\{\s*([a-zA-Z0-9_\-\s]+)\s*\}\}/g;
+    const regex = /\{\{\s*([a-zA-Z0-9_\-\s\/]+)\s*\}\}/g;
     const variables: string[] = [];
     let match;
     while ((match = regex.exec(text)) !== null) {
@@ -3844,7 +3844,7 @@ export default function ChatApp() {
                     {(() => {
                       const text = promptTemplate.text;
                       const parts: React.ReactNode[] = [];
-                      const regex = /(\{\{\s*([a-zA-Z0-9_\-\s]+)\s*\}\})/g;
+                      const regex = /(\{\{\s*([a-zA-Z0-9_\-\s\/]+)\s*\}\})/g;
                       let lastIndex = 0;
                       let match;
                       
