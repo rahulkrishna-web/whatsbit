@@ -374,9 +374,14 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
       ) || headers[0] || "";
       setSelectedPhoneColumn(phoneCol);
 
-      // Guess matches for variable placeholders
+      // Guess matches for variable placeholders ONLY if they are empty
       const updatedMap = { ...variableMappings };
       templateVariables.forEach(v => {
+        // If the user already filled this variable, preserve it
+        if (updatedMap[v]?.value && updatedMap[v].value.trim() !== "") {
+          return;
+        }
+
         let matchingHeader = headers.find(h => h.toLowerCase() === `var${v}` || h.toLowerCase().includes(`variable${v}`));
         if (v === "1" && !matchingHeader) {
           matchingHeader = headers.find(h => 
@@ -387,8 +392,8 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
           );
         }
         if (matchingHeader) {
-          updatedMap[v] = { type: "csv", value: matchingHeader };
-        } else {
+          updatedMap[v] = { type: "csv", value: matchingHeader, fallback: updatedMap[v]?.fallback || "" };
+        } else if (!updatedMap[v]) {
           updatedMap[v] = { type: "default", value: "" };
         }
       });
