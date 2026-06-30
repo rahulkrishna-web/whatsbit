@@ -65,8 +65,37 @@ export default function DriveDashboard() {
   };
 
   const copyToClipboard = (url: string) => {
-    navigator.clipboard.writeText(url);
-    alert("Copied to clipboard!");
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(url).then(() => {
+        alert("Copied to clipboard!");
+      }).catch(err => {
+        fallbackCopyTextToClipboard(url);
+      });
+    } else {
+      fallbackCopyTextToClipboard(url);
+    }
+  };
+
+  const fallbackCopyTextToClipboard = (text: string) => {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.top = "0";
+    textArea.style.left = "0";
+    textArea.style.position = "fixed";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    try {
+      const successful = document.execCommand('copy');
+      if (successful) {
+        alert("Copied to clipboard!");
+      } else {
+        alert("Failed to copy. Please click 'View' and copy the URL manually.");
+      }
+    } catch (err) {
+      alert("Failed to copy. Please click 'View' and copy the URL manually.");
+    }
+    document.body.removeChild(textArea);
   };
 
   const handleDelete = async (fullPath: string) => {
