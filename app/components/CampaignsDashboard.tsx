@@ -694,10 +694,26 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
     }
     setIsSendingTest(true);
     
+    // Resolve which template & text to use
+    const finalTemplateSid = isCreating ? templateSid : (activeCampaign?.templateSid || "");
+    const finalTemplateText = isCreating ? templateText : (activeCampaign?.templateText || "");
+    const finalMediaUrl = isCreating ? overrideMediaUrl.trim() : (activeCampaign?.mediaUrl || "");
+    
+    // Get variables of the target template
+    const regex = /\{\{\s*([a-zA-Z0-9_\-\s\/]+)\s*\}\}/g;
+    const finalTemplateVariables: string[] = [];
+    let match;
+    while ((match = regex.exec(finalTemplateText)) !== null) {
+      const varName = match[1].trim();
+      if (!finalTemplateVariables.includes(varName)) {
+        finalTemplateVariables.push(varName);
+      }
+    }
+    
     // Auto-compile variables
     const compiledVars: Record<string, string> = {};
     if (isCreating) {
-      templateVariables.forEach(v => {
+      finalTemplateVariables.forEach(v => {
         const mapping = variableMappings[v];
         if (mapping) {
           if (mapping.type === "default") {
@@ -718,8 +734,13 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
       });
     } else {
       const firstRecVars = recipients[0]?.variables || {};
-      templateVariables.forEach(v => {
-        compiledVars[v] = firstRecVars[v] || "";
+      finalTemplateVariables.forEach(v => {
+        const isNameVariable = v === "1" || v.toLowerCase().includes("name");
+        if (testName && isNameVariable) {
+          compiledVars[v] = testName;
+        } else {
+          compiledVars[v] = firstRecVars[v] || "";
+        }
       });
     }
 
@@ -731,12 +752,12 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contactId: cleanPhone(testNumber),
-          text: templateText,
+          text: finalTemplateText,
           useTemplate: true,
-          templateSid: templateSid,
+          templateSid: finalTemplateSid,
           senderName: currentUser ? currentUser.name : "Tester",
           contentVariables: compiledVars,
-          mediaUrl: overrideMediaUrl.trim() || undefined
+          mediaUrl: finalMediaUrl || undefined
         })
       });
       const result = await res.json();
