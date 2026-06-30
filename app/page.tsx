@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import styles from "./page.module.css";
 import AutomationFlowBuilder from "./components/AutomationFlowBuilder";
 import CampaignsDashboard from "./components/CampaignsDashboard";
+import DriveDashboard from "./components/DriveDashboard";
 
 function cleanPhone(phone: string): string {
   if (!phone) return "";
@@ -187,7 +188,7 @@ export default function ChatApp() {
   const [inputText, setInputText] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeMenuFilter, setActiveMenuFilter] = useState<string>("all");
-  const [activeView, setActiveView] = useState<"chat" | "automations" | "settings" | "campaigns" | "ai">("chat");
+  const [activeView, setActiveView] = useState<"chat" | "automations" | "settings" | "campaigns" | "ai" | "drive">("chat");
   const [companyName, setCompanyName] = useState("RS Choyal");
   const [logoUrl, setLogoUrl] = useState("/rschoyal-logo.svg");
   const [aiEnabled, setAiEnabled] = useState(false);
@@ -2440,6 +2441,19 @@ export default function ChatApp() {
             </svg>
           </button>
 
+          {/* Drive Tab */}
+          <button 
+            className={`${styles.activityButton} ${activeView === "drive" ? styles.activityButtonActive : ""}`} 
+            onClick={() => {
+              setActiveView("drive");
+            }}
+            title="Cloud Storage"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+            </svg>
+          </button>
+
           {/* AI Tab */}
           <button 
             className={`${styles.activityButton} ${activeView === "ai" ? styles.activityButtonActive : ""}`} 
@@ -4267,6 +4281,8 @@ export default function ChatApp() {
         )
       ) : activeView === "ai" ? (
         renderAIConfigView()
+      ) : activeView === "drive" ? (
+        <DriveDashboard />
       ) : (
         renderSettingsView()
       )}
