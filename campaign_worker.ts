@@ -37,6 +37,7 @@ type Campaign = {
   consecutiveFailureThreshold: number;
   variableMappings?: Record<string, { type: "csv" | "default"; value: string; fallback?: string }>;
   isSimulated?: boolean;
+  mediaUrl?: string;
 };
 
 type CampaignRecipient = {
@@ -286,6 +287,9 @@ async function processRecipient(campaign: Campaign, phone: string, recipient: Ca
         to: `whatsapp:${phone}`,
         contentSid: campaign.templateSid,
       };
+      if (campaign.mediaUrl) {
+        payload.mediaUrl = [campaign.mediaUrl];
+      }
       if (recipient.variables) {
         payload.contentVariables = JSON.stringify(recipient.variables);
       }

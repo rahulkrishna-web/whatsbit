@@ -53,6 +53,7 @@ type Campaign = {
   consecutiveFailureThreshold: number; // e.g. 3
   variableMappings?: Record<string, { type: "csv" | "default"; value: string; fallback?: string }>;
   isSimulated?: boolean;
+  mediaUrl?: string;
 };
 
 type CampaignRecipient = {
@@ -158,6 +159,8 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
   const [testNumber, setTestNumber] = useState("");
   const [isSendingTest, setIsSendingTest] = useState(false);
   const [testLog, setTestLog] = useState("");
+  
+  const [overrideMediaUrl, setOverrideMediaUrl] = useState("");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -465,7 +468,8 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
           failureThreshold,
           consecutiveFailureThreshold,
           variableMappings,
-          isSimulated: simulationMode
+          isSimulated: simulationMode,
+          mediaUrl: overrideMediaUrl.trim() || undefined
         });
         
         // Delete all old recipients from subcollection
@@ -497,7 +501,8 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
           failureThreshold,
           consecutiveFailureThreshold,
           variableMappings,
-          isSimulated: simulationMode
+          isSimulated: simulationMode,
+          mediaUrl: overrideMediaUrl.trim() || undefined
         };
         await setDoc(campRef, campData);
       }
@@ -523,6 +528,7 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
       setActiveCampaignId(campId);
       // Reset form fields
       setNewCampaignName("");
+      setOverrideMediaUrl("");
       setManualNumbers("");
       setCsvHeaders([]);
       setCsvRows([]);
@@ -551,6 +557,7 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
     setStopOnSpam(activeCampaign.stopOnSpam !== false);
     setFailureThreshold(activeCampaign.failureThreshold || 15);
     setConsecutiveFailureThreshold(activeCampaign.consecutiveFailureThreshold || 3);
+    setOverrideMediaUrl(activeCampaign.mediaUrl || "");
     
     // Load recipients
     const recipientPhones = recipients.map(r => r.phone).join("\n");
@@ -707,7 +714,8 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
           useTemplate: true,
           templateSid: templateSid,
           senderName: currentUser ? currentUser.name : "Tester",
-          contentVariables: compiledVars
+          contentVariables: compiledVars,
+          mediaUrl: overrideMediaUrl.trim() || undefined
         })
       });
       const result = await res.json();
@@ -908,6 +916,19 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
                       </button>
                     </div>
                   )}
+                </div>
+
+                <div className={styles.inputGroup}>
+                  <label>Override Template Media URL (Optional)</label>
+                  <input 
+                    type="text" 
+                    placeholder="E.g., https://firebasestorage.googleapis.com/... (Overrides Twilio Template Image)"
+                    value={overrideMediaUrl}
+                    onChange={(e) => setOverrideMediaUrl(e.target.value)}
+                  />
+                  <div className={styles.variablesHelper}>
+                    Paste a direct image URL here to bypass bot-protection or replace the image without waiting for re-approval.
+                  </div>
                 </div>
 
                 {isCustomTemplate && (
