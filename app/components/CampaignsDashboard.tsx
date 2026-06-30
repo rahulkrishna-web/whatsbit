@@ -297,15 +297,27 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
 
   // Initialize variable mapping options when selected template changes
   useEffect(() => {
-    const initial: Record<string, { type: "csv" | "default"; value: string; fallback?: string }> = {};
-    templateVariables.forEach(v => {
-      if (v === "1") {
-        initial[v] = { type: "csv", value: "name", fallback: "Miller" };
-      } else {
-        initial[v] = { type: "default", value: "" };
+    setVariableMappings(prev => {
+      const initial: Record<string, { type: "csv" | "default"; value: string; fallback?: string }> = {};
+      let changed = false;
+      templateVariables.forEach(v => {
+        if (prev[v]) {
+          initial[v] = prev[v];
+        } else {
+          changed = true;
+          if (v === "1") {
+            initial[v] = { type: "csv", value: "name", fallback: "Miller" };
+          } else {
+            initial[v] = { type: "default", value: "" };
+          }
+        }
+      });
+      const oldKeys = Object.keys(prev);
+      if (oldKeys.length !== templateVariables.length || oldKeys.some(k => !templateVariables.includes(k))) {
+        changed = true;
       }
+      return changed ? initial : prev;
     });
-    setVariableMappings(initial);
   }, [templateVariables]);
 
   // Handle CSV upload and parsing
