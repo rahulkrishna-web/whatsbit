@@ -157,6 +157,7 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
   // Test Message popup state
   const [showTestModal, setShowTestModal] = useState(false);
   const [testNumber, setTestNumber] = useState("");
+  const [testName, setTestName] = useState("");
   const [isSendingTest, setIsSendingTest] = useState(false);
   const [testLog, setTestLog] = useState("");
   
@@ -702,10 +703,13 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
           if (mapping.type === "default") {
             compiledVars[v] = mapping.value || "";
           } else if (mapping.type === "csv") {
-            if (csvRows.length > 0 && mapping.value && csvRows[0][mapping.value]) {
+            const isNameVariable = v === "1" || v.toLowerCase().includes("name");
+            if (testName && isNameVariable) {
+              compiledVars[v] = testName;
+            } else if (csvRows.length > 0 && mapping.value && csvRows[0][mapping.value]) {
               compiledVars[v] = csvRows[0][mapping.value];
             } else {
-              compiledVars[v] = mapping.fallback || "";
+              compiledVars[v] = (isNameVariable && testName) ? testName : (mapping.fallback || "");
             }
           }
         } else {
@@ -1607,6 +1611,16 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
                   value={testNumber}
                   onChange={(e) => setTestNumber(e.target.value)}
                 />
+              </div>
+              <div className={styles.inputGroup}>
+                <label>Test Recipient Name (Optional)</label>
+                <input 
+                  type="text" 
+                  placeholder="E.g., John Doe"
+                  value={testName}
+                  onChange={(e) => setTestName(e.target.value)}
+                />
+                <div className={styles.variablesHelper}>Overrides any 'name' variables instead of picking from CSV.</div>
               </div>
 
               {testLog && (
