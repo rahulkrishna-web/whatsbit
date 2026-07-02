@@ -105,6 +105,23 @@ function cleanPhone(phone: string): string {
   return cleaned;
 }
 
+function isClientNameVariable(v: string): boolean {
+  const vLower = v.toLowerCase();
+  return v === "1" || 
+         vLower === "name" || 
+         vLower === "client_name" || 
+         vLower === "client name" || 
+         vLower === "contact_name" || 
+         vLower === "contact name" || 
+         vLower === "recipient_name" ||
+         vLower === "recipient name" ||
+         vLower === "first_name" ||
+         vLower === "first name" ||
+         vLower === "fname" ||
+         vLower === "fullname" ||
+         vLower === "full name";
+}
+
 export default function CampaignsDashboard({ currentUser }: { currentUser: any }) {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [activeCampaignId, setActiveCampaignId] = useState<string | null>(null);
@@ -599,6 +616,50 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
     setIsCreating(true);
   };
 
+  const handleDuplicateCampaign = () => {
+    if (!activeCampaign) return;
+    setEditingCampaignId(null);
+    setNewCampaignName(`${activeCampaign.name} (Copy)`);
+    
+    const isCustom = activeCampaign.templateName === "Custom Template";
+    setIsCustomTemplate(isCustom);
+    if (isCustom) {
+      setCustomTemplateSid(activeCampaign.templateSid || "");
+      setCustomTemplateText(activeCampaign.templateText || "");
+    } else {
+      setSelectedTemplateId(activeCampaign.templateSid || "");
+    }
+    
+    setDelaySeconds(activeCampaign.delaySeconds || 2);
+    setStopOnSpam(activeCampaign.stopOnSpam !== false);
+    setFailureThreshold(activeCampaign.failureThreshold || 15);
+    setConsecutiveFailureThreshold(activeCampaign.consecutiveFailureThreshold || 3);
+    setOverrideMediaUrl(activeCampaign.mediaUrl || "");
+    
+    // Clear recipient data so user has to assign a new CSV
+    setManualNumbers("");
+    setCsvHeaders([]);
+    setCsvRows([]);
+    setSelectedPhoneColumn("");
+    setRecipientSource("csv");
+    
+    // Load mappings
+    if (activeCampaign.variableMappings) {
+      setVariableMappings(activeCampaign.variableMappings);
+    } else if (recipients.length > 0) {
+      const firstRecVars = recipients[0].variables || {};
+      const newMappings: Record<string, { type: "csv" | "default"; value: string; fallback?: string }> = {};
+      Object.entries(firstRecVars).forEach(([v, val]) => {
+        newMappings[v] = { type: "default", value: val as string };
+      });
+      setVariableMappings(newMappings);
+    } else {
+      setVariableMappings({});
+    }
+    
+    setIsCreating(true);
+  };
+
   const handleStartCampaign = async () => {
     if (!activeCampaignId) return;
     await updateDoc(doc(db, "campaigns", activeCampaignId), {
@@ -719,7 +780,7 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
           if (mapping.type === "default") {
             compiledVars[v] = mapping.value || "";
           } else if (mapping.type === "csv") {
-            const isNameVariable = v === "1" || v.toLowerCase().includes("name");
+            const isNameVariable = isClientNameVariable(v);
             if (testName && isNameVariable) {
               compiledVars[v] = testName;
             } else if (csvRows.length > 0 && mapping.value && csvRows[0][mapping.value]) {
@@ -735,7 +796,7 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
     } else {
       const firstRecVars = recipients[0]?.variables || {};
       finalTemplateVariables.forEach(v => {
-        const isNameVariable = v === "1" || v.toLowerCase().includes("name");
+        const isNameVariable = isClientNameVariable(v);
         if (testName && isNameVariable) {
           compiledVars[v] = testName;
         } else {
@@ -1400,6 +1461,13 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
                     Edit
                   </button>
                 )}
+
+                <button 
+                  className={styles.btnSecondary}
+                  onClick={handleDuplicateCampaign}
+                >
+                  Duplicate
+                </button>
 
                 <button 
                   className={styles.btnDanger}
