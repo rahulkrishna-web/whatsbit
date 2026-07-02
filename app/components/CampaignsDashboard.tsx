@@ -1522,6 +1522,20 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
                 </div>
 
                 <div className={styles.analyticsCard}>
+                  <div className={`${styles.analyticsIcon} ${styles.bgSent}`}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <line x1="22" y1="2" x2="11" y2="13"></line>
+                      <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                  </div>
+                  <div className={styles.analyticsMeta}>
+                    <span className={styles.analyticsLabel}>Sent</span>
+                    <span className={styles.analyticsValue}>{activeCampaign.sentCount || 0}</span>
+                  </div>
+                </div>
+
+
+                <div className={styles.analyticsCard}>
                   <div className={`${styles.analyticsIcon} ${styles.bgDelivered}`}>
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                       <polyline points="20 6 9 17 4 12"></polyline>

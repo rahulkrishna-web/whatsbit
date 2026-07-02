@@ -217,7 +217,7 @@
 /* Analytics Grid */
 .analyticsGrid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 16px;
 }
 
@@ -242,9 +242,11 @@
 }
 
 .bgTotal { background-color: rgba(96, 165, 250, 0.1); color: #60a5fa; }
+.bgSent { background-color: rgba(56, 189, 248, 0.1); color: #38bdf8; }
 .bgDelivered { background-color: rgba(52, 211, 153, 0.1); color: #34d399; }
 .bgRead { background-color: rgba(167, 139, 250, 0.1); color: #a78bfa; }
 .bgFailed { background-color: rgba(248, 113, 113, 0.1); color: #f87171; }
+
 
 .analyticsMeta {
   display: flex;
