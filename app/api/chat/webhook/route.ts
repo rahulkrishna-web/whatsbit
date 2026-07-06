@@ -310,7 +310,7 @@ export async function POST(request: Request) {
 
               if (accountSid && authToken) {
                 const client = twilio(accountSid, authToken);
-                const brochureUrl = "https://cdn.clyrix.com/drive/wondermill_brochure.pdf";
+                const brochureUrl = "https://desk.nxtnet.in/whatsbit/wondermill_brochure.pdf";
                 automatedReplied = true;
                 
                 console.log(`[Autoresponder] Sending brochure to ${fromPhone}`);
@@ -457,8 +457,8 @@ export async function POST(request: Request) {
                 responseTemplateText = "Great! Expansion is something we handle regularly. Whether you're scaling up your current capacity or adding new product lines, we have the right solutions.\n\nA few quick questions:\n✓ Current capacity?\n✓ Target expanded capacity?\n✓ Timeline for the expansion?\n✓ Product that you mill?";
                 
                 brochureTemplateSid = "HX0f7cde84a9b825505fc6a3a608c2a3be";
-                brochureText = "Thank you for your interest in RS Choyal Group!\n\nHere's our company brochure with detailed specifications\n📄 https://cdn.clyrix.com/drive/rscg_company_profile.pdf\n\nAlso check out these quick videos to see our work:\n\n🎥 Company Overview: https://www.youtube.com/watch?v=DlEcmcDS598\n\n🎥 How We Setup Plants: https://www.youtube.com/watch?v=OETierqPRFA\n\n🎥 Milling Plant Process (Hindi): https://www.youtube.com/watch?v=MjUnwkiwAvM";
-                brochureUrl = "https://cdn.clyrix.com/drive/rscg_company_profile.pdf";
+                brochureText = "Thank you for your interest in RS Choyal Group!\n\nHere's our company brochure with detailed specifications\n📄 https://desk.nxtnet.in/whatsbit/rscg_company_profile.pdf\n\nAlso check out these quick videos to see our work:\n\n🎥 Company Overview: https://www.youtube.com/watch?v=DlEcmcDS598\n\n🎥 How We Setup Plants: https://www.youtube.com/watch?v=OETierqPRFA\n\n🎥 Milling Plant Process (Hindi): https://www.youtube.com/watch?v=MjUnwkiwAvM";
+                brochureUrl = "https://desk.nxtnet.in/whatsbit/rscg_company_profile.pdf";
                 brochureName = "rscg_company_profile.pdf";
               } else if (isPlantExpansion) {
                 choiceLabel = "Plant Expansion";
@@ -467,7 +467,7 @@ export async function POST(request: Request) {
                 responseTemplateSid = "HXed74bae32850c134356bdfb56915be1e";
                 responseTemplateText = "Great! Expansion is something we handle regularly. Whether you're scaling up your current capacity or adding new product lines, we have the right solutions.\n\nA few quick questions:\n✓ Current capacity?\n✓ Target expanded capacity?\n✓ Timeline for the expansion?\n✓ Product that you mill?";
                 brochureText = "Here's our brochure and video overviews for expanding existing plants:\n🎥 Process Overview: https://www.youtube.com/watch?v=DlEcmcDS598\n🎥 Company Overview: https://www.youtube.com/watch?v=DlEcmcDS598";
-                brochureUrl = "https://cdn.clyrix.com/drive/rscg_company_profile.pdf";
+                brochureUrl = "https://desk.nxtnet.in/whatsbit/rscg_company_profile.pdf";
                 brochureName = "rscg_company_profile.pdf";
               } else {
                 choiceLabel = "Spares & Stones";

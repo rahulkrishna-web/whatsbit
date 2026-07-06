@@ -349,12 +349,12 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
       const lines = text.split(/\r?\n/);
       if (lines.length === 0) return;
 
-      const headers = lines[0].split(",").map(h => h.trim().replace(/^["']|["']$/g, ""));
+      const headers = lines[0].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(h => h.trim().replace(/^["']|["']$/g, ""));
       const rows: Record<string, string>[] = [];
 
       for (let i = 1; i < lines.length; i++) {
         if (!lines[i].trim()) continue;
-        const values = lines[i].split(",").map(v => v.trim().replace(/^["']|["']$/g, ""));
+        const values = lines[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(v => v.trim().replace(/^["']|["']$/g, ""));
         const row: Record<string, string> = {};
         headers.forEach((header, index) => {
           row[header] = values[index] || "";

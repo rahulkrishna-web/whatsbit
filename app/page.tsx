@@ -44,8 +44,9 @@ function getCleanFileName(url: string): string {
   }
 }
 
-import { db, storage } from "../lib/firebase";
+import { db, storage, auth } from "../lib/firebase";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { signInAnonymously } from "firebase/auth";
 import { 
   collection, 
   onSnapshot, 
@@ -153,7 +154,7 @@ const PREDEFINED_TEMPLATES = [
     name: "Send Brochure",
     text: "Thank you for your interest in RS Choyal Group!\n\nHere's our company brochure with detailed specifications\n📄 {{1}}\n\nAlso check out these quick videos to see our work:\n\n🎥 Company Overview: https://www.youtube.com/watch?v=DlEcmcDS598\n\n🎥 How We Setup Plants: https://www.youtube.com/watch?v=OETierqPRFA\n\n🎥 Milling Plant Process (Hindi): https://www.youtube.com/watch?v=MjUnwkiwAvM",
     templateSid: "HX0f7cde84a9b825505fc6a3a608c2a3be",
-    brochureLink: "https://cdn.clyrix.com/drive/rscg_company_profile.pdf"
+    brochureLink: "https://desk.nxtnet.in/whatsbit/rscg_company_profile.pdf"
   },
   {
     id: "detailed_quotation",
@@ -260,6 +261,13 @@ export default function ChatApp() {
       }
     }
     loadLiveTemplates();
+  }, []);
+
+  // Authenticate silently with Firebase to secure the database
+  useEffect(() => {
+    signInAnonymously(auth).catch((error) => {
+      console.error("Firebase Anonymous Auth failed:", error);
+    });
   }, []);
 
   useEffect(() => {
@@ -1270,10 +1278,10 @@ export default function ChatApp() {
     // Build variables with defaults if they are empty
     const varsWithDefaults = { ...variables };
     if (template.templateSid === "HX06341477cd359af1ea2d7430ae1a475d" && !varsWithDefaults["File/Brochure Name 1"]) {
-      varsWithDefaults["File/Brochure Name 1"] = "https://cdn.clyrix.com/drive/rscg_company_profile.pdf";
+      varsWithDefaults["File/Brochure Name 1"] = "https://desk.nxtnet.in/whatsbit/rscg_company_profile.pdf";
     }
     if (template.templateSid === "HX342f8005ee058ec84fd1292a8ed4c1df") {
-      if (!varsWithDefaults["quotation_pdf"]) varsWithDefaults["quotation_pdf"] = "https://cdn.clyrix.com/drive/rscg_company_profile.pdf";
+      if (!varsWithDefaults["quotation_pdf"]) varsWithDefaults["quotation_pdf"] = "https://desk.nxtnet.in/whatsbit/rscg_company_profile.pdf";
       if (!varsWithDefaults["Video link"]) varsWithDefaults["Video link"] = "https://www.youtube.com/watch?v=DlEcmcDS598";
     }
     if (template.templateSid === "HXfaf59293187dc949ff00086943d95587") {
@@ -1290,7 +1298,7 @@ export default function ChatApp() {
       if (!varsWithDefaults[key]) {
         const lowerKey = key.toLowerCase();
         if (lowerKey.includes("brochure") || lowerKey.includes("file") || lowerKey.includes("pdf")) {
-          varsWithDefaults[key] = "https://cdn.clyrix.com/drive/rscg_company_profile.pdf";
+          varsWithDefaults[key] = "https://desk.nxtnet.in/whatsbit/rscg_company_profile.pdf";
         } else if (lowerKey.includes("video") || lowerKey === "link") {
           varsWithDefaults[key] = "https://www.youtube.com/watch?v=DlEcmcDS598";
         }
@@ -1298,7 +1306,7 @@ export default function ChatApp() {
     });
 
     if (template.templateSid === "HX0f7cde84a9b825505fc6a3a608c2a3be" && !varsWithDefaults["1"]) {
-      const brochureUrl = "https://cdn.clyrix.com/drive/rscg_company_profile.pdf";
+      const brochureUrl = "https://desk.nxtnet.in/whatsbit/rscg_company_profile.pdf";
       contentVariables["1"] = brochureUrl;
       textWithVars = textWithVars.replace(/\{\{[^}]+\}\}/g, brochureUrl);
       mediaUrlToSend = brochureUrl;
@@ -1406,7 +1414,7 @@ export default function ChatApp() {
       const vLower = v.toLowerCase().trim();
       const cleanVar = v.trim();
       if (isBrochure && v === "1") {
-        initialVars[v] = template.brochureLink || "https://cdn.clyrix.com/drive/rscg_company_profile.pdf";
+        initialVars[v] = template.brochureLink || "https://desk.nxtnet.in/whatsbit/rscg_company_profile.pdf";
       } else if (
         vLower === "1" ||
         vLower === "client name" ||
@@ -1418,13 +1426,13 @@ export default function ChatApp() {
       } else if (cleanVar === "Video link") {
         initialVars[v] = "https://www.youtube.com/watch?v=DlEcmcDS598";
       } else if (cleanVar === "quotation_pdf") {
-        initialVars[v] = "https://cdn.clyrix.com/drive/rscg_company_profile.pdf";
+        initialVars[v] = "https://desk.nxtnet.in/whatsbit/rscg_company_profile.pdf";
       } else if (cleanVar === "capacity") {
         initialVars[v] = "100TPD";
       } else if (cleanVar === "Plant Name") {
         initialVars[v] = "10TPD";
       } else if (cleanVar.toLowerCase().includes("brochure") || cleanVar.toLowerCase().includes("file") || cleanVar.toLowerCase().includes("pdf")) {
-        initialVars[v] = "https://cdn.clyrix.com/drive/rscg_company_profile.pdf";
+        initialVars[v] = "https://desk.nxtnet.in/whatsbit/rscg_company_profile.pdf";
       } else if (cleanVar === "Link" || cleanVar === "Link 1") {
         initialVars[v] = "https://www.youtube.com/watch?v=DlEcmcDS598";
       } else if (cleanVar === "Link 2") {

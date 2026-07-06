@@ -123,8 +123,8 @@ const LEAD_QUALIFICATION_NODES: FlowNode[] = [
     title: "Send Plant Brochure",
     subType: "send_media",
     config: {
-      text: "Thank you for your interest in RS Choyal Group!\n\nHere's our company brochure with detailed specifications\n📄 https://cdn.clyrix.com/drive/rscg_company_profile.pdf\n\nAlso check out these quick videos to see our work:\n\n🎥 Company Overview: https://www.youtube.com/watch?v=DlEcmcDS598\n\n🎥 How We Setup Plants: https://www.youtube.com/watch?v=OETierqPRFA\n\n🎥 Milling Plant Process (Hindi): https://www.youtube.com/watch?v=MjUnwkiwAvM",
-      mediaUrl: "https://cdn.clyrix.com/drive/rscg_company_profile.pdf",
+      text: "Thank you for your interest in RS Choyal Group!\n\nHere's our company brochure with detailed specifications\n📄 https://desk.nxtnet.in/whatsbit/rscg_company_profile.pdf\n\nAlso check out these quick videos to see our work:\n\n🎥 Company Overview: https://www.youtube.com/watch?v=DlEcmcDS598\n\n🎥 How We Setup Plants: https://www.youtube.com/watch?v=OETierqPRFA\n\n🎥 Milling Plant Process (Hindi): https://www.youtube.com/watch?v=MjUnwkiwAvM",
+      mediaUrl: "https://desk.nxtnet.in/whatsbit/rscg_company_profile.pdf",
       mediaName: "rscg_company_profile.pdf",
     },
     nextNodeId: "node-5a",
@@ -136,7 +136,7 @@ const LEAD_QUALIFICATION_NODES: FlowNode[] = [
     subType: "send_media",
     config: {
       text: "Here's our brochure and video overviews for expanding existing plants:\n🎥 Process Overview: https://www.youtube.com/watch?v=DlEcmcDS598\n🎥 Company Overview: https://www.youtube.com/watch?v=DlEcmcDS598",
-      mediaUrl: "https://cdn.clyrix.com/drive/rscg_company_profile.pdf",
+      mediaUrl: "https://desk.nxtnet.in/whatsbit/rscg_company_profile.pdf",
       mediaName: "rscg_company_profile.pdf",
     },
     nextNodeId: "node-5b",
@@ -319,7 +319,7 @@ const WONDERMILL_AUTO_RESPONDER_NODES: FlowNode[] = [
     subType: "send_media",
     config: {
       text: "Here is the Wondermill brochure you requested.",
-      mediaUrl: "https://cdn.clyrix.com/drive/wondermill_brochure.pdf",
+      mediaUrl: "https://desk.nxtnet.in/whatsbit/wondermill_brochure.pdf",
       mediaName: "wondermill_brochure.pdf",
     },
   },

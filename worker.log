@@ -1,0 +1,217 @@
+
+> whatsbit@0.1.0 campaign-worker
+> tsx campaign_worker.ts
+
+[EnvLoader] Environment variables loaded from .env.local
+[Worker] Starting campaign worker listener...
+[Worker] Started campaign loop for: Qm6anEtavBwmEZwrNhTL
+[Worker] [REAL TWILIO] Sending to +916202414152: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +916203286253: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +916266366556: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +916266883828: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +916375260306: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +916376470699: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +917000701926: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +917012515861: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +917014220924: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +917014921645: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +917017181217: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +917020239624: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +917071645826: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +917073050013: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +917093142997: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +917300691274: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +917301759787: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +917411779795: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +917452048231: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +917500136699: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +917572010222: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +917588177368: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +917620717177: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +917654746142: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +917710908470: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +917737107751: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +917737779755: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +917771899306: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +917827258484: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +917827871305: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +917877757122: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +917888205555: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +917889953662: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +917976341389: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +917999647466: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +918052382200: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +918081343819: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +918084627572: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +918088188656: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +918115008254: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +918141021717: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +918209215443: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +918209900102: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +918263090460: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +918273907879: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +918277151985: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +918279993957: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +918368557319: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +918395815144: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +918434881146: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +918482913014: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +918530182046: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +918572881234: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +918619666046: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +918619744766: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +918630396800: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +918740008171: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +918757043687: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +918757405929: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +918770726949: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +918887900703: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +918949707001: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +918965887876: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +918968077533: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +918983434974: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +918999689105: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919001060677: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919024365866: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919039019332: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919041604444: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919058817307: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919075006770: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919131195105: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919166073834: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919199457788: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919226311301: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919304026611: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919304463746: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919334545127: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919338089045: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919354346987: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919356000921: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919364096866: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919370793074: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919392055551: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919399272672: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919405599999: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919414085980: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919415121183: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919416462704: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919420762849: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919422107759: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919423254144: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919423434141: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919425003534: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919425005740: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919425126984: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919425740148: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919435958396: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919437362624: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919437383350: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919438125587: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919456205399: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919460053439: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919460485001: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919462179336: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919472774040: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919479943940: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919510201138: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919540933999: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919561626907: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919561641147: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919569716469: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919571061718: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919588986237: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919604852838: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919627312632: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919631635175: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919632726000: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919636408918: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919637938866: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919649929263: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919654131131: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919661179009: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919665589837: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919675924032: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919680010448: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919717747795: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919718747789: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919731969431: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919743639999: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919753483910: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919767318999: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919770983060: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919782180202: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919784321213: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919810344999: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919811186531: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919814534965: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919815548675: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919822535953: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919823160813: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919825140502: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919829252399: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919829885745: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919830151751: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919834980597: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919838156992: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919843866566: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919845123141: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919860293605: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919860339326: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919861216364: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919864020738: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919872070761: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919872720000: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919879529827: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919879666250: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919879944134: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919880185166: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919887881834: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919893380675: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919896100651: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919896934739: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919914694033: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919924699209: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919928364694: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919929026778: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919929110168: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919929369721: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919931959909: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919935593081: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919935620343: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919937602621: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919942450450: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919978114575: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919980027861: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919982607275: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919984180808: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919984430600: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919988500987: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] [REAL TWILIO] Sending to +919993061481: Template SID HX8f4ce2e5a68923c9f1da3d3b70456d92
+[Worker] Campaign Qm6anEtavBwmEZwrNhTL has completed processing all recipients.
+[Worker] Exited campaign loop for: Qm6anEtavBwmEZwrNhTL
+[2026-07-04T10:07:32.324Z]  @firebase/firestore: Firestore (12.14.0): GrpcConnection RPC 'Listen' stream 0x19d4ba2d error. Code: 13 Message: 13 INTERNAL: Received RST_STREAM with code 2 triggered by internal client error: read ENETUNREACH
+[2026-07-04T10:07:32.332Z]  @firebase/firestore: Firestore (12.14.0): GrpcConnection RPC 'Write' stream 0x19d4ba2e error. Code: 13 Message: 13 INTERNAL: Received RST_STREAM with code 2 triggered by internal client error: read ENETUNREACH
+[2026-07-04T11:07:32.988Z]  @firebase/firestore: Firestore (12.14.0): GrpcConnection RPC 'Listen' stream 0x19d4ba2f error. Code: 13 Message: 13 INTERNAL: Received RST_STREAM with code 2 (Internal server error)
+[2026-07-04T11:40:45.568Z]  @firebase/firestore: Firestore (12.14.0): GrpcConnection RPC 'Write' stream 0x19d4ba30 error. Code: 13 Message: 13 INTERNAL: Received RST_STREAM with code 2 (Internal server error)
+[2026-07-04T12:07:33.103Z]  @firebase/firestore: Firestore (12.14.0): GrpcConnection RPC 'Listen' stream 0x19d4ba31 error. Code: 13 Message: 13 INTERNAL: Received RST_STREAM with code 2 (Internal server error)
+[2026-07-05T09:46:23.215Z]  @firebase/firestore: Firestore (12.14.0): GrpcConnection RPC 'Write' stream 0x19d4ba32 error. Code: 13 Message: 13 INTERNAL: Received RST_STREAM with code 2 triggered by internal client error: read ENETUNREACH
+[2026-07-05T10:02:13.488Z]  @firebase/firestore: Firestore (12.14.0): GrpcConnection RPC 'Listen' stream 0x19d4ba33 error. Code: 14 Message: 14 UNAVAILABLE: read ETIMEDOUT
+[2026-07-05T10:02:13.490Z]  @firebase/firestore: Firestore (12.14.0): GrpcConnection RPC 'Write' stream 0x19d4ba34 error. Code: 14 Message: 14 UNAVAILABLE: read ETIMEDOUT
+[2026-07-05T11:02:14.074Z]  @firebase/firestore: Firestore (12.14.0): GrpcConnection RPC 'Listen' stream 0x19d4ba35 error. Code: 13 Message: 13 INTERNAL: Received RST_STREAM with code 2 (Internal server error)
+[2026-07-05T11:18:04.639Z]  @firebase/firestore: Firestore (12.14.0): GrpcConnection RPC 'Listen' stream 0x19d4ba37 error. Code: 14 Message: 14 UNAVAILABLE: read ETIMEDOUT
+[2026-07-05T12:18:04.827Z]  @firebase/firestore: Firestore (12.14.0): GrpcConnection RPC 'Listen' stream 0x19d4ba38 error. Code: 13 Message: 13 INTERNAL: Received RST_STREAM with code 2 (Internal server error)
+[2026-07-05T13:18:04.964Z]  @firebase/firestore: Firestore (12.14.0): GrpcConnection RPC 'Listen' stream 0x19d4ba39 error. Code: 13 Message: 13 INTERNAL: Received RST_STREAM with code 2 (Internal server error)
+[2026-07-05T13:39:33.205Z]  @firebase/firestore: Firestore (12.14.0): GrpcConnection RPC 'Write' stream 0x19d4ba36 error. Code: 13 Message: 13 INTERNAL: Received RST_STREAM with code 2 (Internal server error)
+[2026-07-05T14:18:05.099Z]  @firebase/firestore: Firestore (12.14.0): GrpcConnection RPC 'Listen' stream 0x19d4ba3a error. Code: 13 Message: 13 INTERNAL: Received RST_STREAM with code 2 (Internal server error)
+[2026-07-05T15:18:05.155Z]  @firebase/firestore: Firestore (12.14.0): GrpcConnection RPC 'Listen' stream 0x19d4ba3c error. Code: 13 Message: 13 INTERNAL: Received RST_STREAM with code 2 (Internal server error)
+[2026-07-05T16:18:05.241Z]  @firebase/firestore: Firestore (12.14.0): GrpcConnection RPC 'Listen' stream 0x19d4ba3d error. Code: 13 Message: 13 INTERNAL: Received RST_STREAM with code 2 (Internal server error)
+[2026-07-05T17:18:05.379Z]  @firebase/firestore: Firestore (12.14.0): GrpcConnection RPC 'Listen' stream 0x19d4ba3e error. Code: 13 Message: 13 INTERNAL: Received RST_STREAM with code 2 (Internal server error)
+[2026-07-05T18:18:05.499Z]  @firebase/firestore: Firestore (12.14.0): GrpcConnection RPC 'Listen' stream 0x19d4ba3f error. Code: 13 Message: 13 INTERNAL: Received RST_STREAM with code 2 (Internal server error)
+[2026-07-05T20:26:41.580Z]  @firebase/firestore: Firestore (12.14.0): GrpcConnection RPC 'Write' stream 0x19d4ba3b error. Code: 13 Message: 13 INTERNAL: Received RST_STREAM with code 2 triggered by internal client error: read ENETUNREACH
+[2026-07-05T20:42:31.846Z]  @firebase/firestore: Firestore (12.14.0): GrpcConnection RPC 'Listen' stream 0x19d4ba40 error. Code: 14 Message: 14 UNAVAILABLE: read ETIMEDOUT
+[2026-07-05T20:42:31.853Z]  @firebase/firestore: Firestore (12.14.0): GrpcConnection RPC 'Write' stream 0x19d4ba41 error. Code: 14 Message: 14 UNAVAILABLE: read ETIMEDOUT
+[2026-07-05T21:19:20.232Z]  @firebase/firestore: Firestore (12.14.0): GrpcConnection RPC 'Listen' stream 0x19d4ba42 error. Code: 14 Message: 14 UNAVAILABLE: read ECONNRESET
+[2026-07-05T21:19:20.234Z]  @firebase/firestore: Firestore (12.14.0): GrpcConnection RPC 'Write' stream 0x19d4ba43 error. Code: 14 Message: 14 UNAVAILABLE: read ECONNRESET
+[2026-07-05T22:19:20.342Z]  @firebase/firestore: Firestore (12.14.0): GrpcConnection RPC 'Listen' stream 0x19d4ba44 error. Code: 13 Message: 13 INTERNAL: Received RST_STREAM with code 2 (Internal server error)
+[2026-07-05T23:19:20.514Z]  @firebase/firestore: Firestore (12.14.0): GrpcConnection RPC 'Listen' stream 0x19d4ba46 error. Code: 13 Message: 13 INTERNAL: Received RST_STREAM with code 2 (Internal server error)
+[2026-07-06T00:19:20.675Z]  @firebase/firestore: Firestore (12.14.0): GrpcConnection RPC 'Listen' stream 0x19d4ba47 error. Code: 13 Message: 13 INTERNAL: Received RST_STREAM with code 2 (Internal server error)
