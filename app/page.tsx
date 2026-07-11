@@ -562,14 +562,14 @@ export default function ChatApp() {
   useEffect(() => {
     if (typeof window !== "undefined") {
       if (window.self === window.top) {
-        setIsAuthorized(false);
+        setIsAuthorized(true); // Allow direct access
       } else {
         const script = document.createElement("script");
         script.src = "https://api.bitrix24.com/api/v1/";
         script.async = true;
 
         const timeoutId = setTimeout(() => {
-          setIsAuthorized(false);
+          setIsAuthorized(true); // Allow even if Bitrix24 API times out
         }, 5000);
 
         script.onload = () => {
