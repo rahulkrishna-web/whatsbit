@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   // Bitrix24 sends POST requests containing authorization data in the body
   if (request.method === "POST") {
     try {

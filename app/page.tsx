@@ -5,7 +5,7 @@ import styles from "./page.module.css";
 import AutomationFlowBuilder from "./components/AutomationFlowBuilder";
 import CampaignsDashboard from "./components/CampaignsDashboard";
 import DriveDashboard from "./components/DriveDashboard";
-import { useWorkspace } from "./context/WorkspaceContext";
+import { useWorkspace, useApi } from "./context/WorkspaceContext";
 
 function cleanPhone(phone: string): string {
   if (!phone) return "";
@@ -61,7 +61,7 @@ import {
   deleteDoc,
   writeBatch,
   serverTimestamp
-} from "../lib/firestore-wrapper";
+} from "./lib/firestore-wrapper";
 
 type Message = {
   id: string;
@@ -190,7 +190,7 @@ export default function ChatApp() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [verifyError, setVerifyError] = useState("");
 
-  const contacts = orgId ? [] : []; // We will refactor this later, just keeping variables for now
+  const [contacts, setContacts] = useState<Contact[]>(INITIAL_CONTACTS);
 
   const [activeChatId, setActiveChatId] = useState<string>("918839780947");
   const [allMessages, setAllMessages] = useState<Record<string, Message[]>>(INITIAL_MESSAGES);
@@ -2483,8 +2483,8 @@ export default function ChatApp() {
     );
   }
 
-  // Define contacts state back (we temporarily removed it above)
-  const [contacts, setContacts] = useState<Contact[]>(INITIAL_CONTACTS);
+
+  return (
     <div className={styles.appContainer}>
       {/* VSCode-style slim Activity Bar */}
       <div className={styles.activityBar}>
@@ -4397,6 +4397,7 @@ function getYouTubeId(url: string): string | null {
 }
 
 function LinkPreviewCard({ url }: { url: string }) {
+  const apiFetch = useApi();
   const [metadata, setMetadata] = useState<{ title?: string; description?: string; image?: string; error?: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
 

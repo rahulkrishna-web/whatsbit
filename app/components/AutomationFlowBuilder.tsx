@@ -10,7 +10,7 @@ import {
   setDoc,
   deleteDoc,
   serverTimestamp,
-} from "../../lib/firestore-wrapper";
+} from "../lib/firestore-wrapper";
 
 interface FlowNode {
   id: string;

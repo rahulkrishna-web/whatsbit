@@ -17,7 +17,7 @@ import {
   increment,
   query,
   orderBy
-} from "../../lib/firestore-wrapper";
+} from "../lib/firestore-wrapper";
 import { useApi } from "../context/WorkspaceContext";
 import styles from "./CampaignsDashboard.module.css";
 
