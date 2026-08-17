@@ -567,114 +567,108 @@ export default function ChatApp() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  // Initialize Bitrix24 SDK dynamically if inside iframe
+  // Initialize Bitrix24 SDK dynamically
   useEffect(() => {
     if (typeof window !== "undefined") {
-      if (window.self === window.top) {
-        setDebugMsg(btoa(`URL: ${window.location.href} | REASON: Not inside iframe`));
+      const script = document.createElement("script");
+      script.src = "https://api.bitrix24.com/api/v1/";
+      script.async = true;
+      document.body.appendChild(script);
+
+      const timeoutId = setTimeout(() => {
+        setDebugMsg(btoa(`URL: ${window.location.href} | REASON: Timeout after 5s. BX24 exists: ${typeof (window as any).BX24}`));
         setIsAuthorized(false);
-      } else {
-        const script = document.createElement("script");
-        script.src = "https://api.bitrix24.com/api/v1/";
-        script.async = true;
-        document.body.appendChild(script);
+      }, 5000);
 
-        const timeoutId = setTimeout(() => {
-          setDebugMsg(btoa(`URL: ${window.location.href} | REASON: Timeout after 5s. BX24 exists: ${typeof (window as any).BX24}`));
-          setIsAuthorized(false);
-        }, 5000);
+      script.onload = () => {
+        const w = window as any;
+        if (w.BX24) {
+          try {
+            w.BX24.init(() => {
+              clearTimeout(timeoutId);
+              w.BX24.fitWindow();
+              setIsAuthorized(true);
 
-        script.onload = () => {
-          const w = window as any;
-          if (w.BX24) {
-            try {
-              w.BX24.init(() => {
-                clearTimeout(timeoutId);
-                w.BX24.fitWindow();
-                setIsAuthorized(true);
+              // Fetch current user (staff) details
+              try {
+                w.BX24.callMethod("user.current", {}, (resUser: any) => {
+                  if (!resUser.error()) {
+                    const userData = resUser.data();
+                    const fullName = `${userData.NAME || ""} ${userData.LAST_NAME || ""}`.trim() || `User #${userData.ID}`;
+                    const isAdmin = userData.ADMIN === true;
+                    setCurrentUser({ id: userData.ID, name: fullName, isAdmin });
+                  }
+                });
+              } catch (userErr) {
+                console.error("Error fetching current user profile:", userErr);
+              }
 
-                // Fetch current user (staff) details
-                try {
-                  w.BX24.callMethod("user.current", {}, (resUser: any) => {
-                    if (!resUser.error()) {
-                      const userData = resUser.data();
-                      const fullName = `${userData.NAME || ""} ${userData.LAST_NAME || ""}`.trim() || `User #${userData.ID}`;
-                      const isAdmin = userData.ADMIN === true;
-                      setCurrentUser({ id: userData.ID, name: fullName, isAdmin });
+              // Detect if running inside a Lead/Contact Placement Tab
+              try {
+                const info = w.BX24.placement.info();
+                if (info && info.options && info.options.ID) {
+                  setIsSidebarOpen(false);
+                  const entityId = info.options.ID;
+                  const placementName = info.placement;
+                  let apiMethod = "crm.lead.get";
+                  if (placementName === "CRM_CONTACT_DETAIL_TAB" || placementName === "CRM_CONTACT_DETAIL_ACTIVITY") {
+                    apiMethod = "crm.contact.get";
+                  }
+
+                  w.BX24.callMethod(apiMethod, { id: entityId }, async (result: any) => {
+                    if (result.error()) {
+                      console.error("Error fetching CRM entity details:", result.error());
+                      return;
+                    }
+
+                    const entity = result.data();
+                    let phone = "";
+                    if (entity.PHONE && Array.isArray(entity.PHONE) && entity.PHONE.length > 0) {
+                      phone = entity.PHONE[0].VALUE;
+                    } else if (entity.PHONE && typeof entity.PHONE === "string") {
+                      phone = entity.PHONE;
+                    }
+
+                    if (phone) {
+                      const cleaned = cleanPhone(phone);
+                      const firstName = entity.NAME || "";
+                      const lastName = entity.LAST_NAME || "";
+                      const fullName = `${firstName} ${lastName}`.trim() || `Lead #${entityId}`;
+
+                      // Check/Create contact in Firestore
+                      const contactRef = doc(db, "contacts", cleaned);
+                      const contactSnap = await getDoc(contactRef);
+
+                      if (!contactSnap.exists()) {
+                        await setDoc(contactRef, {
+                          id: cleaned,
+                          name: fullName,
+                          preview: "Phone: " + phone,
+                          time: new Date().toLocaleTimeString("en-IN", {
+                            timeZone: timeZone,
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            hour12: true
+                          }),
+                          lastUpdated: serverTimestamp(),
+                          statusText: "WhatsApp • Online",
+                        });
+                      }
+
+                      // Switch to the loaded chat
+                      setActiveChatId(cleaned);
                     }
                   });
-                } catch (userErr) {
-                  console.error("Error fetching current user profile:", userErr);
                 }
-
-                // Detect if running inside a Lead/Contact Placement Tab
-                try {
-                  const info = w.BX24.placement.info();
-                  if (info && info.options && info.options.ID) {
-                    setIsSidebarOpen(false);
-                    const entityId = info.options.ID;
-                    const placementName = info.placement;
-                    let apiMethod = "crm.lead.get";
-                    if (placementName === "CRM_CONTACT_DETAIL_TAB" || placementName === "CRM_CONTACT_DETAIL_ACTIVITY") {
-                      apiMethod = "crm.contact.get";
-                    }
-
-                    w.BX24.callMethod(apiMethod, { id: entityId }, async (result: any) => {
-                      if (result.error()) {
-                        console.error("Error fetching CRM entity details:", result.error());
-                        return;
-                      }
-
-                      const entity = result.data();
-                      let phone = "";
-                      if (entity.PHONE && Array.isArray(entity.PHONE) && entity.PHONE.length > 0) {
-                        phone = entity.PHONE[0].VALUE;
-                      } else if (entity.PHONE && typeof entity.PHONE === "string") {
-                        phone = entity.PHONE;
-                      }
-
-                      if (phone) {
-                        const cleaned = cleanPhone(phone);
-                        const firstName = entity.NAME || "";
-                        const lastName = entity.LAST_NAME || "";
-                        const fullName = `${firstName} ${lastName}`.trim() || `Lead #${entityId}`;
-
-                        // Check/Create contact in Firestore
-                        const contactRef = doc(db, "contacts", cleaned);
-                        const contactSnap = await getDoc(contactRef);
-
-                        if (!contactSnap.exists()) {
-                          await setDoc(contactRef, {
-                            id: cleaned,
-                            name: fullName,
-                            preview: "Phone: " + phone,
-                            time: new Date().toLocaleTimeString("en-IN", {
-                              timeZone: timeZone,
-                              hour: "2-digit",
-                              minute: "2-digit",
-                              hour12: true
-                            }),
-                            lastUpdated: serverTimestamp(),
-                            statusText: "WhatsApp • Online",
-                          });
-                        }
-
-                        // Switch to the loaded chat
-                        setActiveChatId(cleaned);
-                      }
-                    });
-                  }
-                } catch (e) {
-                  console.error("Error getting placement info:", e);
-                }
-              });
-            } catch (e) {
-              console.error("Failed to initialize Bitrix24 client SDK", e);
-            }
+              } catch (e) {
+                console.error("Error getting placement info:", e);
+              }
+            });
+          } catch (e) {
+            console.error("Failed to initialize Bitrix24 client SDK", e);
           }
-        };
-        document.head.appendChild(script);
-      }
+        }
+      };
     }
   }, []);
 
@@ -2402,91 +2396,6 @@ export default function ChatApp() {
     );
   };
 
-  if (isConnecting) {
-    return (
-      <div style={{ display: 'flex', height: '100vh', background: '#0f172a', alignItems: 'center', justifyContent: 'center', color: '#f8fafc' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ 
-            width: 40, height: 40, border: '3px solid #334155', borderTopColor: '#0ea5e9',
-            borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 16px'
-          }} />
-          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-          <h2>Connecting to Clyrix...</h2>
-        </div>
-      </div>
-    );
-  }
-
-  if (!orgId || !clyrixApiKey) {
-    return (
-      <div style={{ display: 'flex', height: '100vh', background: '#0f172a', alignItems: 'center', justifyContent: 'center', color: '#f8fafc', fontFamily: 'sans-serif' }}>
-        <div style={{ background: '#1e293b', border: '1px solid #334155', padding: '40px', borderRadius: '16px', maxWidth: '400px', width: '100%', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)' }}>
-          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="48" height="48" fill="#00a884" style={{ marginBottom: '16px' }}>
-              <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.513 2.262 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.455L0 24zm6.59-4.846c1.665.988 3.3.15 5.367.15 5.068 0 9.197-4.127 9.2-9.197.002-2.457-.962-4.767-2.715-6.523C16.69 1.83 14.383.867 11.92.867c-5.071 0-9.2 4.127-9.202 9.2-.001 1.942.508 3.834 1.474 5.513l-.993 3.63 3.448-.926z"/>
-            </svg>
-            <h2 style={{ fontSize: '24px', fontWeight: 600, margin: '0 0 8px 0' }}>Connect to Clyrix</h2>
-            <p style={{ color: '#94a3b8', fontSize: '14px', margin: 0 }}>Enter your workspace API connection key to continue.</p>
-          </div>
-          
-          {(connectionError || verifyError) && (
-            <div style={{ background: '#7f1d1d40', color: '#fca5a5', border: '1px solid #7f1d1d', padding: '12px', borderRadius: '8px', marginBottom: '20px', fontSize: '13px' }}>
-              {connectionError || verifyError}
-            </div>
-          )}
-
-          <div style={{ marginBottom: '24px' }}>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '8px' }}>API Connection Key</label>
-            <input 
-              type="password" 
-              value={tempApiKey}
-              onChange={e => setTempApiKey(e.target.value)}
-              placeholder="e.g. clyrix_wa_..."
-              style={{ width: '100%', padding: '12px', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: '#f8fafc', fontSize: '14px', outline: 'none' }}
-              onFocus={e => e.target.style.borderColor = '#0ea5e9'}
-              onBlur={e => e.target.style.borderColor = '#334155'}
-            />
-          </div>
-
-          <button 
-            disabled={isVerifying || !tempApiKey}
-            onClick={async () => {
-              setIsVerifying(true);
-              setVerifyError("");
-              try {
-                const clyrixUrl = process.env.NEXT_PUBLIC_CLYRIX_URL || "https://clyrix.com";
-                const res = await fetch(`${clyrixUrl}/api/whatsbit/auth`, {
-                  headers: { "x-api-key": tempApiKey }
-                });
-                if (res.ok) {
-                  const data = await res.json();
-                  if (data.success && data.orgId) {
-                    setWorkspace(data.orgId, tempApiKey);
-                  } else {
-                    setVerifyError("Invalid API Key");
-                  }
-                } else {
-                  setVerifyError("Server error verifying key");
-                }
-              } catch (e: any) {
-                setVerifyError("Network error. Please try again.");
-              } finally {
-                setIsVerifying(false);
-              }
-            }}
-            style={{ 
-              width: '100%', padding: '12px', background: isVerifying || !tempApiKey ? '#334155' : '#0ea5e9', 
-              color: isVerifying || !tempApiKey ? '#94a3b8' : '#fff', border: 'none', borderRadius: '8px', 
-              fontSize: '14px', fontWeight: 600, cursor: isVerifying || !tempApiKey ? 'not-allowed' : 'pointer',
-              transition: 'background 0.2s'
-            }}
-          >
-            {isVerifying ? 'Verifying...' : 'Connect Workspace'}
-          </button>
-        </div>
-      </div>
-    );
-  }
 
 
   return (
