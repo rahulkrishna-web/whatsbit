@@ -17,7 +17,8 @@ import {
   increment,
   query,
   orderBy
-} from "firebase/firestore";
+} from "../../lib/firestore-wrapper";
+import { useApi } from "../context/WorkspaceContext";
 import styles from "./CampaignsDashboard.module.css";
 
 type Message = {
@@ -32,6 +33,8 @@ type Message = {
   errorCode?: string;
   errorMessage?: string;
   timestamp?: any;
+  deliveredAt?: string;
+  readAt?: string;
 };
 
 type Campaign = {
@@ -122,7 +125,8 @@ function isClientNameVariable(v: string): boolean {
          vLower === "full name";
 }
 
-export default function CampaignsDashboard({ currentUser }: { currentUser: any }) {
+export default function CampaignsDashboard({ currentUser }: { currentUser?: any }) {
+  const apiFetch = useApi();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [activeCampaignId, setActiveCampaignId] = useState<string | null>(null);
   const [recipients, setRecipients] = useState<CampaignRecipient[]>([]);
@@ -204,10 +208,12 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
   const fetchTwilioTemplates = async () => {
     setIsLoadingTemplates(true);
     try {
-      const res = await fetch("/api/twilio/templates");
-      const result = await res.json();
-      if (result.success) {
-        setTwilioTemplates(result.templates || []);
+      const res = await apiFetch("/api/whatsbit/twilio/templates");
+      if (res.ok) {
+        const result = await res.json();
+        if (result.success) {
+          setTwilioTemplates(result.templates || []);
+        }
       }
     } catch (e) {
       console.error("Error fetching Twilio templates:", e);
@@ -808,7 +814,7 @@ export default function CampaignsDashboard({ currentUser }: { currentUser: any }
     setTestLog(`Compiling variables & sending test message...\nVariables to send:\n${JSON.stringify(compiledVars, null, 2)}`);
     
     try {
-      const res = await fetch("/api/chat/send", {
+      const res = await apiFetch("/api/whatsbit/chat/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

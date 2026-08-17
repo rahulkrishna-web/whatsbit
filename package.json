@@ -10,6 +10,7 @@
     "campaign-worker": "tsx campaign_worker.ts"
   },
   "dependencies": {
+    "dotenv": "^17.4.2",
     "firebase": "^12.14.0",
     "firebase-admin": "^13.10.0",
     "next": "16.2.6",

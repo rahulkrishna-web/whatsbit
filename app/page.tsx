@@ -5,6 +5,7 @@ import styles from "./page.module.css";
 import AutomationFlowBuilder from "./components/AutomationFlowBuilder";
 import CampaignsDashboard from "./components/CampaignsDashboard";
 import DriveDashboard from "./components/DriveDashboard";
+import { useWorkspace } from "./context/WorkspaceContext";
 
 function cleanPhone(phone: string): string {
   if (!phone) return "";
@@ -60,7 +61,7 @@ import {
   deleteDoc,
   writeBatch,
   serverTimestamp
-} from "firebase/firestore";
+} from "../lib/firestore-wrapper";
 
 type Message = {
   id: string;
@@ -183,7 +184,14 @@ const PREDEFINED_TEMPLATES = [
 ];
 
 export default function ChatApp() {
-  const [contacts, setContacts] = useState<Contact[]>(INITIAL_CONTACTS);
+  const { orgId, clyrixApiKey, setWorkspace, logout, isConnecting, connectionError } = useWorkspace();
+  const apiFetch = useApi();
+  const [tempApiKey, setTempApiKey] = useState("");
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verifyError, setVerifyError] = useState("");
+
+  const contacts = orgId ? [] : []; // We will refactor this later, just keeping variables for now
+
   const [activeChatId, setActiveChatId] = useState<string>("918839780947");
   const [allMessages, setAllMessages] = useState<Record<string, Message[]>>(INITIAL_MESSAGES);
   const [inputText, setInputText] = useState("");
@@ -234,7 +242,7 @@ export default function ChatApp() {
   useEffect(() => {
     async function loadLiveTemplates() {
       try {
-        const res = await fetch("/api/twilio/templates");
+        const res = await apiFetch("/api/whatsbit/twilio/templates");
         if (res.ok) {
           const data = await res.json();
           if (data.success && data.templates) {
@@ -1330,7 +1338,7 @@ export default function ChatApp() {
     }
 
     try {
-      const response = await fetch("/api/chat/send", {
+      const response = await apiFetch("/api/whatsbit/chat/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1771,7 +1779,7 @@ export default function ChatApp() {
 
     if (mediaUrlToSend) {
       try {
-        const response = await fetch("/api/chat/send", {
+        const response = await apiFetch("/api/whatsbit/chat/send", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -1795,7 +1803,7 @@ export default function ChatApp() {
       const isWelcomeTemplate = messageText.toLowerCase().includes("welcome") || messageText.toLowerCase().includes("choyal");
 
       try {
-        const response = await fetch("/api/chat/send", {
+        const response = await apiFetch("/api/whatsbit/chat/send", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -2389,7 +2397,94 @@ export default function ChatApp() {
     );
   };
 
-  return (
+  if (isConnecting) {
+    return (
+      <div style={{ display: 'flex', height: '100vh', background: '#0f172a', alignItems: 'center', justifyContent: 'center', color: '#f8fafc' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ 
+            width: 40, height: 40, border: '3px solid #334155', borderTopColor: '#0ea5e9',
+            borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 16px'
+          }} />
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+          <h2>Connecting to Clyrix...</h2>
+        </div>
+      </div>
+    );
+  }
+
+  if (!orgId || !clyrixApiKey) {
+    return (
+      <div style={{ display: 'flex', height: '100vh', background: '#0f172a', alignItems: 'center', justifyContent: 'center', color: '#f8fafc', fontFamily: 'sans-serif' }}>
+        <div style={{ background: '#1e293b', border: '1px solid #334155', padding: '40px', borderRadius: '16px', maxWidth: '400px', width: '100%', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.5)' }}>
+          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="48" height="48" fill="#00a884" style={{ marginBottom: '16px' }}>
+              <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.513 2.262 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.455L0 24zm6.59-4.846c1.665.988 3.3.15 5.367.15 5.068 0 9.197-4.127 9.2-9.197.002-2.457-.962-4.767-2.715-6.523C16.69 1.83 14.383.867 11.92.867c-5.071 0-9.2 4.127-9.202 9.2-.001 1.942.508 3.834 1.474 5.513l-.993 3.63 3.448-.926z"/>
+            </svg>
+            <h2 style={{ fontSize: '24px', fontWeight: 600, margin: '0 0 8px 0' }}>Connect to Clyrix</h2>
+            <p style={{ color: '#94a3b8', fontSize: '14px', margin: 0 }}>Enter your workspace API connection key to continue.</p>
+          </div>
+          
+          {(connectionError || verifyError) && (
+            <div style={{ background: '#7f1d1d40', color: '#fca5a5', border: '1px solid #7f1d1d', padding: '12px', borderRadius: '8px', marginBottom: '20px', fontSize: '13px' }}>
+              {connectionError || verifyError}
+            </div>
+          )}
+
+          <div style={{ marginBottom: '24px' }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '8px' }}>API Connection Key</label>
+            <input 
+              type="password" 
+              value={tempApiKey}
+              onChange={e => setTempApiKey(e.target.value)}
+              placeholder="e.g. clyrix_wa_..."
+              style={{ width: '100%', padding: '12px', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: '#f8fafc', fontSize: '14px', outline: 'none' }}
+              onFocus={e => e.target.style.borderColor = '#0ea5e9'}
+              onBlur={e => e.target.style.borderColor = '#334155'}
+            />
+          </div>
+
+          <button 
+            disabled={isVerifying || !tempApiKey}
+            onClick={async () => {
+              setIsVerifying(true);
+              setVerifyError("");
+              try {
+                const clyrixUrl = process.env.NEXT_PUBLIC_CLYRIX_URL || "https://clyrix.com";
+                const res = await fetch(`${clyrixUrl}/api/whatsbit/auth`, {
+                  headers: { "x-api-key": tempApiKey }
+                });
+                if (res.ok) {
+                  const data = await res.json();
+                  if (data.success && data.orgId) {
+                    setWorkspace(data.orgId, tempApiKey);
+                  } else {
+                    setVerifyError("Invalid API Key");
+                  }
+                } else {
+                  setVerifyError("Server error verifying key");
+                }
+              } catch (e: any) {
+                setVerifyError("Network error. Please try again.");
+              } finally {
+                setIsVerifying(false);
+              }
+            }}
+            style={{ 
+              width: '100%', padding: '12px', background: isVerifying || !tempApiKey ? '#334155' : '#0ea5e9', 
+              color: isVerifying || !tempApiKey ? '#94a3b8' : '#fff', border: 'none', borderRadius: '8px', 
+              fontSize: '14px', fontWeight: 600, cursor: isVerifying || !tempApiKey ? 'not-allowed' : 'pointer',
+              transition: 'background 0.2s'
+            }}
+          >
+            {isVerifying ? 'Verifying...' : 'Connect Workspace'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Define contacts state back (we temporarily removed it above)
+  const [contacts, setContacts] = useState<Contact[]>(INITIAL_CONTACTS);
     <div className={styles.appContainer}>
       {/* VSCode-style slim Activity Bar */}
       <div className={styles.activityBar}>
@@ -4308,11 +4403,8 @@ function LinkPreviewCard({ url }: { url: string }) {
   useEffect(() => {
     let active = true;
     setLoading(true);
-    fetch(`/api/chat/link-preview?url=${encodeURIComponent(url)}`)
-      .then((res) => {
-        if (!res.ok) throw new Error();
-        return res.json();
-      })
+    apiFetch(`/api/whatsbit/chat/link-preview?url=${encodeURIComponent(url)}`)
+      .then((res) => res.json())
       .then((data) => {
         if (active && data.success) {
           setMetadata({

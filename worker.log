@@ -215,3 +215,10 @@
 [2026-07-05T22:19:20.342Z]  @firebase/firestore: Firestore (12.14.0): GrpcConnection RPC 'Listen' stream 0x19d4ba44 error. Code: 13 Message: 13 INTERNAL: Received RST_STREAM with code 2 (Internal server error)
 [2026-07-05T23:19:20.514Z]  @firebase/firestore: Firestore (12.14.0): GrpcConnection RPC 'Listen' stream 0x19d4ba46 error. Code: 13 Message: 13 INTERNAL: Received RST_STREAM with code 2 (Internal server error)
 [2026-07-06T00:19:20.675Z]  @firebase/firestore: Firestore (12.14.0): GrpcConnection RPC 'Listen' stream 0x19d4ba47 error. Code: 13 Message: 13 INTERNAL: Received RST_STREAM with code 2 (Internal server error)
+
+> whatsbit@0.1.0 campaign-worker
+> tsx campaign_worker.ts
+
+[EnvLoader] Environment variables loaded from .env.local
+[Worker] Starting campaign worker listener...
+[Worker] Shutting down campaign worker...

@@ -17,6 +17,8 @@ export const metadata: Metadata = {
   description: "Embedded WhatsApp App for Bitrix24",
 };
 
+import { WorkspaceProvider } from "./context/WorkspaceContext";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -25,7 +27,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
-        {children}
+        <WorkspaceProvider>
+          {children}
+        </WorkspaceProvider>
       </body>
     </html>
   );
