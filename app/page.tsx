@@ -300,6 +300,7 @@ export default function ChatApp() {
   const [customLabels, setCustomLabels] = useState<{ id: string; name: string; parentId?: string | null; order?: number }[]>([]);
   const [showLabelDropdown, setShowLabelDropdown] = useState(false);
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
+  const [debugMsg, setDebugMsg] = useState("");
   const [currentUser, setCurrentUser] = useState<{ id: string; name: string; isAdmin: boolean } | null>(null);
   const [allowedStaffIds, setAllowedStaffIds] = useState<string[]>([]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -570,6 +571,7 @@ export default function ChatApp() {
   useEffect(() => {
     if (typeof window !== "undefined") {
       if (window.self === window.top) {
+        setDebugMsg(btoa(`URL: ${window.location.href} | REASON: Not inside iframe`));
         setIsAuthorized(false);
       } else {
         const script = document.createElement("script");
@@ -578,6 +580,7 @@ export default function ChatApp() {
         document.body.appendChild(script);
 
         const timeoutId = setTimeout(() => {
+          setDebugMsg(btoa(`URL: ${window.location.href} | REASON: Timeout after 5s. BX24 exists: ${typeof (window as any).BX24}`));
           setIsAuthorized(false);
         }, 5000);
 
@@ -2007,6 +2010,7 @@ export default function ChatApp() {
           </p>
           <div style={{ fontSize: '12px', color: '#64748b', borderTop: '1px solid #334155', paddingTop: '16px' }}>
             App ID: WhatsappLine • Status: Secured
+            {debugMsg && <div style={{marginTop: '8px', wordBreak: 'break-all', opacity: 0.5}}>ErrRef: {debugMsg}</div>}
           </div>
         </div>
       </div>
