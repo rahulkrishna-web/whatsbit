@@ -575,6 +575,7 @@ export default function ChatApp() {
         const script = document.createElement("script");
         script.src = "https://api.bitrix24.com/api/v1/";
         script.async = true;
+        document.body.appendChild(script);
 
         const timeoutId = setTimeout(() => {
           setIsAuthorized(false);
