@@ -93,13 +93,17 @@ export const useApi = () => {
   const { clyrixApiKey } = useWorkspace();
   
   return async (path: string, options: RequestInit = {}) => {
-    const clyrixUrl = process.env.NEXT_PUBLIC_CLYRIX_URL || "https://clyrix.com";
-    const headers = {
+    // Standalone mode: always use relative local API paths
+    const baseUrl = "";
+    const headers: any = {
       ...options.headers,
-      "x-api-key": clyrixApiKey || ""
     };
     
-    return fetch(`${clyrixUrl}${path}`, {
+    if (clyrixApiKey) {
+      headers["x-api-key"] = clyrixApiKey;
+    }
+    
+    return fetch(`${baseUrl}${path}`, {
       ...options,
       headers
     });

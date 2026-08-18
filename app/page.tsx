@@ -1352,6 +1352,8 @@ export default function ChatApp() {
     }));
     setTimeout(scrollToBottom, 50);
 
+
+
     try {
       const response = await apiFetch("/api/whatsbit/chat/send", {
         method: "POST",
@@ -1808,6 +1810,8 @@ export default function ChatApp() {
       [activeChatId]: [...(prev[activeChatId] || []), optimisticMsg]
     }));
     setTimeout(scrollToBottom, 50);
+
+
 
     if (mediaUrlToSend) {
       try {
