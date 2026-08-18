@@ -1335,6 +1335,23 @@ export default function ChatApp() {
       });
     }
 
+    const optimisticMsg: Message = {
+      id: "temp-" + Date.now(),
+      text: textWithVars,
+      isSent: true,
+      time: new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true }),
+      status: "sent",
+      mediaUrl: mediaUrlToSend || "",
+      mediaType: (mediaTypeToSend as any) || "",
+      senderName: currentUser ? currentUser.name : "Staff",
+    };
+    
+    setAllMessages(prev => ({
+      ...prev,
+      [activeChatId]: [...(prev[activeChatId] || []), optimisticMsg]
+    }));
+    setTimeout(scrollToBottom, 50);
+
     try {
       const response = await apiFetch("/api/whatsbit/chat/send", {
         method: "POST",
@@ -1774,6 +1791,23 @@ export default function ChatApp() {
     setStagedFileName(null);
     setUploadError(null);
     setUploadProgress(0);
+
+    const optimisticMsg: Message = {
+      id: "temp-" + Date.now(),
+      text: messageText,
+      isSent: true,
+      time: new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true }),
+      status: "sent",
+      mediaUrl: mediaUrlToSend || "",
+      mediaType: (mediaTypeToSend as any) || "",
+      senderName: currentUser ? currentUser.name : "Staff",
+    };
+    
+    setAllMessages(prev => ({
+      ...prev,
+      [activeChatId]: [...(prev[activeChatId] || []), optimisticMsg]
+    }));
+    setTimeout(scrollToBottom, 50);
 
     if (mediaUrlToSend) {
       try {
