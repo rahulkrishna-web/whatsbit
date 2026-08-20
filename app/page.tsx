@@ -225,6 +225,9 @@ export default function ChatApp() {
   const [modalUploading, setModalUploading] = useState(false);
   const [modalUploadProgress, setModalUploadProgress] = useState(0);
 
+  const [isEditingContactName, setIsEditingContactName] = useState(false);
+  const [editingContactNameVal, setEditingContactNameVal] = useState("");
+
   const getTemplateVariables = (text: string): string[] => {
     if (!text) return [];
     const regex = /\{\{\s*([a-zA-Z0-9_\-\s\/]+)\s*\}\}/g;
@@ -1388,10 +1391,12 @@ export default function ChatApp() {
     const activeContact = sortedContacts.find((c) => c.id === activeChatId) || contacts.find((c) => c.id === activeChatId);
     const hasName = activeContact && !/^\+?\d+$/.test(activeContact.name.replace(/\s+/g, ""));
     
+    const isBrochure = promptTemplate.templateSid === "HX0f7cde84a9b825505fc6a3a608c2a3be";
     // Check if there's any client name variable input
     const clientNameKey = Object.keys(promptedVariables).find(k => {
       const kl = k.toLowerCase().trim();
-      return kl === "1" || kl === "client name" || kl === "client_name";
+      if (isBrochure && kl === "1") return false;
+      return kl === "1" || kl === "client name" || kl === "client_name" || kl === "customer name" || kl === "customer_name";
     });
     const enteredName = clientNameKey ? promptedVariables[clientNameKey] : "";
 
@@ -2776,7 +2781,107 @@ export default function ChatApp() {
             </div>
             <div className={styles.chatHeaderInfo}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span className={styles.chatHeaderName}>{activeContact.name}</span>
+                {isEditingContactName ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <input
+                      type="text"
+                      value={editingContactNameVal}
+                      onChange={(e) => setEditingContactNameVal(e.target.value)}
+                      onKeyDown={async (e) => {
+                        if (e.key === 'Enter') {
+                          if (editingContactNameVal.trim()) {
+                            try {
+                              const contactRef = doc(db, "contacts", activeContact.id);
+                              await updateDoc(contactRef, { name: editingContactNameVal.trim() });
+                              setContacts((prevContacts) =>
+                                prevContacts.map((c) => (c.id === activeContact.id ? { ...c, name: editingContactNameVal.trim() } : c))
+                              );
+                            } catch (err) {
+                              console.error("Failed to update contact name:", err);
+                            }
+                          }
+                          setIsEditingContactName(false);
+                        } else if (e.key === 'Escape') {
+                          setIsEditingContactName(false);
+                        }
+                      }}
+                      autoFocus
+                      style={{
+                        padding: '4px 8px',
+                        border: '1px solid #cbd5e1',
+                        borderRadius: '4px',
+                        fontSize: '15px',
+                        fontWeight: '600',
+                        color: '#1e293b',
+                        outline: 'none',
+                        width: '200px'
+                      }}
+                    />
+                    <button
+                      onClick={async () => {
+                        if (editingContactNameVal.trim()) {
+                          try {
+                            const contactRef = doc(db, "contacts", activeContact.id);
+                            await updateDoc(contactRef, { name: editingContactNameVal.trim() });
+                            setContacts((prevContacts) =>
+                              prevContacts.map((c) => (c.id === activeContact.id ? { ...c, name: editingContactNameVal.trim() } : c))
+                            );
+                          } catch (err) {
+                            console.error("Failed to update contact name:", err);
+                          }
+                        }
+                        setIsEditingContactName(false);
+                      }}
+                      style={{ background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '12px' }}
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={() => setIsEditingContactName(false)}
+                      style={{ background: '#cbd5e1', color: '#1e293b', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '12px' }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <span 
+                      className={styles.chatHeaderName} 
+                      style={{ cursor: 'pointer' }}
+                      title="Click to edit name"
+                      onClick={() => {
+                        setEditingContactNameVal(activeContact.name);
+                        setIsEditingContactName(true);
+                      }}
+                    >
+                      {activeContact.name}
+                    </span>
+                    <button
+                      onClick={() => {
+                        setEditingContactNameVal(activeContact.name);
+                        setIsEditingContactName(true);
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: '#94a3b8',
+                        padding: '2px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transition: 'color 0.2s',
+                        marginLeft: '-4px'
+                      }}
+                      title="Edit Contact Name"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                      </svg>
+                    </button>
+                  </>
+                )}
                 <button 
                   onClick={async () => {
                     const contactRef = doc(db, "contacts", activeContact.id);
