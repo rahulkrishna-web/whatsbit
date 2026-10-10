@@ -249,8 +249,8 @@ export default function ChatApp() {
         if (res.ok) {
           const data = await res.json();
           if (data.success && data.templates) {
-            setTemplates((prev) =>
-              prev.map((pt) => {
+            setTemplates((prev) => {
+              const updated = prev.map((pt) => {
                 const live = data.templates.find((lt: any) => lt.sid === pt.templateSid);
                 if (live && live.body) {
                   let liveText = live.body;
@@ -260,11 +260,27 @@ export default function ChatApp() {
                   return {
                     ...pt,
                     text: liveText,
+                    name: live.friendlyName || pt.name,
+                    buttons: live.buttons?.length > 0 ? live.buttons : pt.buttons
                   };
                 }
                 return pt;
-              })
-            );
+              });
+
+              // Automatically include newly approved templates that are not in predefined list
+              const existingSids = new Set(prev.map((pt) => pt.templateSid));
+              const newLive = data.templates
+                .filter((lt: any) => !existingSids.has(lt.sid) && (lt.status === "approved" || !lt.status) && lt.body)
+                .map((lt: any) => ({
+                  id: lt.sid,
+                  name: lt.friendlyName || lt.sid,
+                  text: lt.body,
+                  templateSid: lt.sid,
+                  buttons: lt.buttons || []
+                }));
+
+              return [...updated, ...newLive];
+            });
           }
         }
       } catch (err) {
@@ -389,32 +405,43 @@ export default function ChatApp() {
     const labelsRef = collection(db, "labels");
     const unsubscribe = onSnapshot(labelsRef, (snapshot) => {
       const list: { id: string; name: string; parentId?: string | null; order?: number }[] = [];
-      snapshot.forEach((doc) => {
-        const data = doc.data();
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
         list.push({ 
-          id: doc.id, 
+          id: docSnap.id, 
           name: data.name,
           parentId: data.parentId || null,
           order: data.order !== undefined ? data.order : 0
         });
       });
       
-      if (list.length === 0) {
+      if (snapshot.empty && list.length === 0) {
         const defaults = ["High Priority", "Warm Leads", "Follow Up Required", "Technical Support"];
         const batch = writeBatch(db);
         defaults.forEach((name, index) => {
-          const newDocRef = doc(collection(db, "labels"));
+          const docId = `label_${name.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+          const newDocRef = doc(db, "labels", docId);
           batch.set(newDocRef, {
             name,
             parentId: null,
             order: index
-          });
+          }, { merge: true });
         });
         batch.commit();
       } else {
+        // Deduplicate in case of legacy duplicate documents
+        const seen = new Set<string>();
+        const uniqueList: typeof list = [];
+        list.forEach((item) => {
+          const key = `${item.parentId || "root"}:::${(item.name || "").trim().toLowerCase()}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            uniqueList.push(item);
+          }
+        });
         // Sort by order
-        list.sort((a, b) => (a.order || 0) - (b.order || 0));
-        setCustomLabels(list);
+        uniqueList.sort((a, b) => (a.order || 0) - (b.order || 0));
+        setCustomLabels(uniqueList);
       }
     });
 
