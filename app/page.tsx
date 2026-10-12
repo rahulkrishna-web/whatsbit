@@ -183,6 +183,16 @@ const PREDEFINED_TEMPLATES = [
   }
 ];
 
+// Templates staff can pick in a normal chat, in this order (list from the sales team). All other approved
+// templates — marketing ones in particular — are for the Campaign Manager only.
+const CHAT_TEMPLATE_SIDS = [
+  "HX68dfb84bba8143c63d42fb9d3a3a9af6", // welcome
+  "HX58cd8aa67a890587d506da408de3f01e", // rscg_send_quotation
+  "HX0f7cde84a9b825505fc6a3a608c2a3be", // rscg_brochure_send
+  "HXd48310d1653f996f15a7a39f6a2803b5", // rscg_follow_up
+  "HX3923a558bd905659e8030c0323066bc2", // rscg_missed_call
+];
+
 export default function ChatApp() {
   const { orgId, clyrixApiKey, setWorkspace, logout, isConnecting, connectionError } = useWorkspace();
   const apiFetch = useApi();
@@ -216,6 +226,11 @@ export default function ChatApp() {
   const [editLogoHeight, setEditLogoHeight] = useState(30);
 
   const [templates, setTemplates] = useState(PREDEFINED_TEMPLATES);
+  // `templates` stays complete (used to render buttons on previously sent messages); the picker shows only these.
+  const chatTemplates = useMemo(
+    () => CHAT_TEMPLATE_SIDS.map((sid) => templates.find((t) => t.templateSid === sid)).filter((t): t is (typeof templates)[number] => Boolean(t)),
+    [templates]
+  );
   const [showNamePrompt, setShowNamePrompt] = useState(false);
   const [promptTemplate, setPromptTemplate] = useState<{ id?: string; name: string; text: string; templateSid: string; brochureLink?: string; buttons?: string[] } | null>(null);
   const [promptedName, setPromptedName] = useState("");
@@ -3552,7 +3567,7 @@ export default function ChatApp() {
                     <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', padding: '6px 8px', textTransform: 'uppercase', textAlign: 'left' }}>
                       Select WhatsApp Template
                     </div>
-                    {templates.map((tmpl) => (
+                    {chatTemplates.map((tmpl) => (
                       <button
                         key={tmpl.id}
                         onClick={() => handleSendTemplate(tmpl)}
@@ -3707,7 +3722,7 @@ export default function ChatApp() {
                     <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', padding: '4px 8px', textTransform: 'uppercase', textAlign: 'left' }}>
                       Select WhatsApp Template
                     </div>
-                    {templates.map((tmpl) => (
+                    {chatTemplates.map((tmpl) => (
                       <button
                         key={tmpl.id}
                         onClick={() => handleSendTemplate(tmpl)}
