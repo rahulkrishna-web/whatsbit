@@ -17,6 +17,14 @@ import {
 } from "firebase/firestore";
 import twilio from "twilio";
 
+// Campaigns are now sent by Clyrix (/api/cron/whatsbit-campaigns, every minute). This worker ignores Clyrix's
+// per-campaign lease, so running both would send the same campaign twice. Only start it as an emergency fallback
+// with the Clyrix cron switched off: WHATSBIT_LEGACY_WORKER=1 npm run campaign-worker
+if (process.env.WHATSBIT_LEGACY_WORKER !== "1") {
+  console.error("[Worker] Disabled: campaigns are processed by Clyrix. Set WHATSBIT_LEGACY_WORKER=1 to force (only with the Clyrix cron off).");
+  process.exit(1);
+}
+
 // Types
 type Campaign = {
   id: string;

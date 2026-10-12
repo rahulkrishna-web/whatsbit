@@ -737,7 +737,9 @@ export default function CampaignsDashboard({ currentUser }: { currentUser?: any 
     const checkHeartbeat = () => {
       if (workerLastActiveTs) {
         const diffSeconds = (Date.now() - workerLastActiveTs) / 1000;
-        setWorkerActive(diffSeconds < 15);
+        // Campaigns are sent by Clyrix's cron (/api/cron/whatsbit-campaigns), which checks in about once a
+        // minute; the old always-on worker checked in every 5s. Allow for a missed tick.
+        setWorkerActive(diffSeconds < 150);
       } else {
         setWorkerActive(false);
       }
