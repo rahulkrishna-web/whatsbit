@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ref, uploadBytesResumable, getDownloadURL, listAll, getMetadata, deleteObject } from 'firebase/storage';
-import { storage } from '../../lib/firebase';
+import { storage, db } from '../../lib/firebase';
+import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 
 export default function DriveDashboard() {
   const [files, setFiles] = useState<{name: string, url: string, size: number, timeCreated: string, fullPath: string}[]>([]);
@@ -38,11 +39,27 @@ export default function DriveDashboard() {
     fetchFiles();
   }, []);
 
+  const createShortLink = async (longUrl: string, cleanName: string): Promise<string> => {
+    const handle = Math.random().toString(36).substring(2, 8);
+    const docRef = doc(db, "short_links", handle);
+    await setDoc(docRef, {
+      originalUrl: longUrl,
+      fileName: cleanName,
+      createdAt: serverTimestamp(),
+    });
+    return `${window.location.origin}/link/${handle}`;
+  };
+
   const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
-    const storageRef = ref(storage, `drive/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`);
-    const uploadTask = uploadBytesResumable(storageRef, file);
+    const cleanName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const storageRef = ref(storage, `drive/${Date.now()}_${cleanName}`);
+    const metadata = {
+      contentDisposition: `inline; filename="${cleanName}"`,
+      contentType: file.type || 'application/pdf'
+    };
+    const uploadTask = uploadBytesResumable(storageRef, file, metadata);
 
     setUploading(true);
     uploadTask.on('state_changed', 
@@ -108,6 +125,16 @@ export default function DriveDashboard() {
       alert("Failed to delete: " + err.message);
     }
   }
+
+  const copyPrettyLink = async (file: { name: string, url: string }) => {
+    try {
+      const cleanName = file.name.replace(/^\d+_/, '').replace(/[^a-zA-Z0-9._-]/g, '_');
+      const shortUrl = await createShortLink(file.url, cleanName);
+      copyToClipboard(shortUrl);
+    } catch (e: any) {
+      alert("Failed to create pretty link: " + e.message);
+    }
+  };
 
   return (
     <div style={{ padding: '32px', flex: 1, backgroundColor: '#090d16', color: '#f8fafc', overflowY: 'auto' }}>
@@ -175,9 +202,17 @@ export default function DriveDashboard() {
                       style={{ padding: '6px 12px', backgroundColor: '#334155', color: '#f8fafc', border: 'none', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}
                     >View</button>
                     <button 
+                      onClick={() => copyPrettyLink(file)}
+                      title="Copies a short trackable link that shows clean document name in WhatsApp"
+                      style={{ padding: '6px 12px', backgroundColor: '#059669', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                      Pretty Link
+                    </button>
+                    <button 
                       onClick={() => copyToClipboard(file.url)}
                       style={{ padding: '6px 12px', backgroundColor: '#4f46e5', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}
-                    >Copy URL</button>
+                    >Direct URL</button>
                     <button 
                       onClick={() => handleDelete(file.fullPath)}
                       style={{ padding: '6px 12px', backgroundColor: 'transparent', color: '#ef4444', border: '1px solid #ef4444', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}

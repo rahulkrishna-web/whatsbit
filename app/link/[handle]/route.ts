@@ -29,6 +29,7 @@ function checkIsBot(request: Request): boolean {
     uaLower.includes("lighthouse") ||
     uaLower.includes("curl") ||
     uaLower.includes("wget") ||
+    uaLower.includes("twilio") ||
     uaLower.includes("go-http-client");
 
   const purpose = request.headers.get("purpose") || "";
@@ -72,22 +73,28 @@ export async function GET(
     // This allows the bot/crawler to follow the redirect and generate correct meta preview,
     // but avoids logging the click event or marking the link as opened in the UI.
     if (checkIsBot(request)) {
-      return NextResponse.redirect(originalUrl, 302);
+      const redirectRes = NextResponse.redirect(originalUrl, 302);
+      if (linkData.fileName) {
+        redirectRes.headers.set("Content-Disposition", `inline; filename="${linkData.fileName}"`);
+      }
+      return redirectRes;
     }
 
     // For real browser requests, serve a JS-redirect landing page.
     // This prevents bots that don't run JS from registering false-positive clicks.
-    let fileName = "Document";
-    try {
-      const urlObj = new URL(originalUrl);
-      const pathname = urlObj.pathname;
-      const parts = pathname.split("/");
-      const lastPart = parts[parts.length - 1];
-      if (lastPart) {
-        fileName = decodeURIComponent(lastPart);
+    let fileName = linkData.fileName || "Document";
+    if (!linkData.fileName) {
+      try {
+        const urlObj = new URL(originalUrl);
+        const pathname = urlObj.pathname;
+        const parts = pathname.split("/");
+        const lastPart = parts[parts.length - 1];
+        if (lastPart) {
+          fileName = decodeURIComponent(lastPart);
+        }
+      } catch (e) {
+        // Keep fallback name
       }
-    } catch (e) {
-      // Keep fallback name
     }
 
     const htmlContent = `<!DOCTYPE html>

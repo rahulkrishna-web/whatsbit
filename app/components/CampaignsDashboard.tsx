@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { db } from "../../lib/firebase";
+import { db, storage } from "../../lib/firebase";
+import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { 
   collection, 
   onSnapshot, 
@@ -20,6 +21,22 @@ import {
 } from "../lib/firestore-wrapper";
 import { useApi } from "../context/WorkspaceContext";
 import styles from "./CampaignsDashboard.module.css";
+
+function getCleanFileName(url: string): string {
+  if (!url) return "document.pdf";
+  try {
+    const pathSeg = url.split("?")[0].split("/").pop() || "";
+    const decoded = decodeURIComponent(pathSeg);
+    const lastPart = decoded.split("/").pop() || "";
+    let clean = lastPart.replace(/^attachments_/, "").replace(/^uploads_/, "");
+    clean = clean.replace(/^\+?\d+_[0-9]+_/, "");
+    clean = clean.replace(/^[0-9]+_/, "");
+    clean = clean.replace(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}_/, "");
+    return clean || "document.pdf";
+  } catch {
+    return "document.pdf";
+  }
+}
 
 type Message = {
   id: string;
@@ -57,6 +74,7 @@ type Campaign = {
   variableMappings?: Record<string, { type: "csv" | "default"; value: string; fallback?: string }>;
   isSimulated?: boolean;
   mediaUrl?: string;
+  mediaFileName?: string;
 };
 
 type CampaignRecipient = {
@@ -183,8 +201,157 @@ export default function CampaignsDashboard({ currentUser }: { currentUser?: any 
   const [testLog, setTestLog] = useState("");
   
   const [overrideMediaUrl, setOverrideMediaUrl] = useState("");
+  const [mediaUploading, setMediaUploading] = useState(false);
+  const [mediaUploadProgress, setMediaUploadProgress] = useState(0);
+  const [mediaFileName, setMediaFileName] = useState("");
+
+  const [varUploading, setVarUploading] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const mediaFileInputRef = useRef<HTMLInputElement>(null);
+
+  const createShortLink = async (longUrl: string, fileName?: string): Promise<string> => {
+    const handle = Math.random().toString(36).substring(2, 8);
+    const docRef = doc(db, "short_links", handle);
+    const data: any = {
+      originalUrl: longUrl,
+      createdAt: serverTimestamp(),
+    };
+    if (fileName) data.fileName = fileName;
+    await setDoc(docRef, data);
+    return `${window.location.origin}/link/${handle}`;
+  };
+
+  const handleCustomLinkAlias = async (currentLink: string, onUpdated: (newLink: string) => void) => {
+    const urlParts = currentLink.split("/link/");
+    if (urlParts.length < 2) return;
+    const origin = urlParts[0];
+    const currentHandle = urlParts[1];
+    
+    const customAlias = prompt("Enter a custom link alias (alphanumeric, e.g. choyal-proposal):", currentHandle);
+    if (!customAlias) return;
+    
+    const cleanAlias = customAlias.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "");
+    if (!cleanAlias) {
+      alert("Invalid alias. Only lowercase letters, numbers, dashes, and underscores are allowed.");
+      return;
+    }
+    
+    if (cleanAlias === currentHandle) return;
+    
+    try {
+      const docRef = doc(db, "short_links", cleanAlias);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        alert("This alias is already in use. Please try another one.");
+        return;
+      }
+      
+      const currentRef = doc(db, "short_links", currentHandle);
+      const currentSnap = await getDoc(currentRef);
+      if (!currentSnap.exists()) {
+        alert("Error: Original link reference not found.");
+        return;
+      }
+      
+      const currentData = currentSnap.data();
+      
+      await setDoc(docRef, {
+        ...currentData,
+        createdAt: serverTimestamp(),
+        isCustom: true
+      });
+      
+      const newLink = `${origin}/link/${cleanAlias}`;
+      onUpdated(newLink);
+    } catch (err: any) {
+      alert("Failed to customize alias: " + err.message);
+    }
+  };
+
+  const uploadMediaFile = async (file: File) => {
+    setMediaUploading(true);
+    setMediaUploadProgress(0);
+    try {
+      const cleanName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const docDisplayName = mediaFileName.trim() || cleanName;
+      const storageRef = ref(storage, `campaign_media_${Date.now()}_${cleanName}`);
+      const metadata = {
+        contentDisposition: `inline; filename="${docDisplayName}"`,
+        contentType: file.type || 'application/pdf'
+      };
+      const uploadTask = uploadBytesResumable(storageRef, file, metadata);
+
+      uploadTask.on('state_changed',
+        (snapshot) => {
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          setMediaUploadProgress(Math.round(progress));
+        },
+        (error) => {
+          console.error("Campaign media upload failed:", error);
+          setMediaUploading(false);
+          setMediaUploadProgress(0);
+          alert("Upload failed: " + error.message);
+        },
+        async () => {
+          try {
+            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+            const shortUrl = await createShortLink(downloadURL, docDisplayName);
+            setOverrideMediaUrl(shortUrl);
+            setMediaFileName(docDisplayName);
+          } catch (err: any) {
+            alert("Failed to get download URL: " + err.message);
+          } finally {
+            setMediaUploading(false);
+            setMediaUploadProgress(0);
+          }
+        }
+      );
+    } catch (err: any) {
+      setMediaUploading(false);
+      setMediaUploadProgress(0);
+      alert("Upload error: " + err.message);
+    }
+  };
+
+  const uploadFileForVariable = async (varName: string, file: File) => {
+    setVarUploading(varName);
+    try {
+      const cleanName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const storageRef = ref(storage, `campaign_vars_${Date.now()}_${cleanName}`);
+      const metadata = {
+        contentDisposition: `inline; filename="${cleanName}"`,
+        contentType: file.type || 'application/pdf'
+      };
+      const uploadTask = uploadBytesResumable(storageRef, file, metadata);
+
+      uploadTask.on('state_changed',
+        null,
+        (error) => {
+          console.error("Variable file upload failed:", error);
+          setVarUploading(null);
+          alert("Upload failed: " + error.message);
+        },
+        async () => {
+          try {
+            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+            const shortUrl = await createShortLink(downloadURL, cleanName);
+            setVariableMappings(prev => ({
+              ...prev,
+              [varName]: { ...prev[varName], type: "default", value: shortUrl }
+            }));
+          } catch (err: any) {
+            alert("Failed to get download URL: " + err.message);
+          } finally {
+            setVarUploading(null);
+          }
+        }
+      );
+    } catch (err: any) {
+      setVarUploading(null);
+      alert("Upload error: " + err.message);
+    }
+  };
 
   // Load campaigns list
   useEffect(() => {
@@ -510,7 +677,8 @@ export default function CampaignsDashboard({ currentUser }: { currentUser?: any 
           consecutiveFailureThreshold,
           variableMappings,
           isSimulated: simulationMode,
-          mediaUrl: overrideMediaUrl.trim() || undefined
+          mediaUrl: overrideMediaUrl.trim() || undefined,
+          mediaFileName: mediaFileName.trim() || undefined
         });
         
         // Delete all old recipients from subcollection
@@ -543,7 +711,8 @@ export default function CampaignsDashboard({ currentUser }: { currentUser?: any 
           consecutiveFailureThreshold,
           variableMappings,
           isSimulated: simulationMode,
-          mediaUrl: overrideMediaUrl.trim() || undefined
+          mediaUrl: overrideMediaUrl.trim() || undefined,
+          mediaFileName: mediaFileName.trim() || undefined
         };
         await setDoc(campRef, campData);
       }
@@ -570,6 +739,7 @@ export default function CampaignsDashboard({ currentUser }: { currentUser?: any 
       // Reset form fields
       setNewCampaignName("");
       setOverrideMediaUrl("");
+      setMediaFileName("");
       setManualNumbers("");
       setCsvHeaders([]);
       setCsvRows([]);
@@ -599,6 +769,7 @@ export default function CampaignsDashboard({ currentUser }: { currentUser?: any 
     setFailureThreshold(activeCampaign.failureThreshold || 15);
     setConsecutiveFailureThreshold(activeCampaign.consecutiveFailureThreshold || 3);
     setOverrideMediaUrl(activeCampaign.mediaUrl || "");
+    setMediaFileName(activeCampaign.mediaFileName || (activeCampaign.mediaUrl ? getCleanFileName(activeCampaign.mediaUrl) : ""));
     
     // Load recipients
     const recipientPhones = recipients.map(r => r.phone).join("\n");
@@ -1030,15 +1201,169 @@ export default function CampaignsDashboard({ currentUser }: { currentUser?: any 
                 </div>
 
                 <div className={styles.inputGroup}>
-                  <label>Override Template Media URL (Optional)</label>
-                  <input 
-                    type="text" 
-                    placeholder="E.g., https://firebasestorage.googleapis.com/... (Overrides Twilio Template Image)"
-                    value={overrideMediaUrl}
-                    onChange={(e) => setOverrideMediaUrl(e.target.value)}
-                  />
+                  <label>Attach File / Media (Optional)</label>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <input 
+                      type="text" 
+                      placeholder="Paste URL or upload a file…"
+                      value={overrideMediaUrl}
+                      onChange={(e) => { setOverrideMediaUrl(e.target.value); setMediaFileName(""); }}
+                      style={{ flex: 1 }}
+                    />
+                    <input
+                      ref={mediaFileInputRef}
+                      type="file"
+                      accept=".pdf,.doc,.docx,image/*,video/*"
+                      style={{ display: "none" }}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) uploadMediaFile(file);
+                        e.target.value = "";
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => mediaFileInputRef.current?.click()}
+                      disabled={mediaUploading}
+                      style={{
+                        padding: "10px 14px",
+                        borderRadius: "8px",
+                        border: "1px solid #cbd5e1",
+                        backgroundColor: "#f8fafc",
+                        color: "#475569",
+                        fontSize: "13px",
+                        fontWeight: 500,
+                        cursor: mediaUploading ? "not-allowed" : "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "#64748b" }}>
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                      </svg>
+                      {mediaUploading ? "Uploading…" : "Upload File"}
+                    </button>
+                  </div>
+
+                  {/* Upload progress bar */}
+                  {mediaUploading && (
+                    <div style={{ marginTop: "8px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#64748b", marginBottom: "4px" }}>
+                        <span>Uploading file to cloud storage…</span>
+                        <span>{mediaUploadProgress}%</span>
+                      </div>
+                      <div style={{ height: "4px", backgroundColor: "#e2e8f0", borderRadius: "2px", overflow: "hidden" }}>
+                        <div style={{ height: "100%", width: `${mediaUploadProgress}%`, backgroundColor: "#00a884", transition: "width 0.2s" }} />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Pretty file card when URL is set */}
+                  {overrideMediaUrl && !mediaUploading && (
+                    <div style={{
+                      marginTop: "8px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      padding: "10px 12px",
+                      borderRadius: "8px",
+                      border: "1px solid #d1fae5",
+                      backgroundColor: "#f0fdf4",
+                    }}>
+                      <div style={{
+                        width: "36px",
+                        height: "36px",
+                        borderRadius: "6px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor: overrideMediaUrl.toLowerCase().includes(".pdf") || (mediaFileName && mediaFileName.toLowerCase().endsWith(".pdf")) ? "#fee2e2" : "#e0f2fe",
+                        flexShrink: 0,
+                      }}>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={overrideMediaUrl.toLowerCase().includes(".pdf") || (mediaFileName && mediaFileName.toLowerCase().endsWith(".pdf")) ? "#ef4444" : "#0284c7"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                          <polyline points="14 2 14 8 20 8"></polyline>
+                        </svg>
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: "13px", fontWeight: 600, color: "#1e293b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {mediaFileName || getCleanFileName(overrideMediaUrl)}
+                        </div>
+                        <div style={{ fontSize: "11px", color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {overrideMediaUrl.length > 60 ? overrideMediaUrl.substring(0, 57) + "…" : overrideMediaUrl}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => { setOverrideMediaUrl(""); setMediaFileName(""); }}
+                        title="Remove file"
+                        style={{
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          padding: "4px",
+                          color: "#94a3b8",
+                          flexShrink: 0,
+                        }}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="18" y1="6" x2="6" y2="18"></line>
+                          <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                      </button>
+                    </div>
+                  )}
+
+                  {overrideMediaUrl && (
+                    <div style={{ marginTop: "6px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <label style={{ fontSize: "12px", color: "#94a3b8", whiteSpace: "nowrap", fontWeight: 500 }}>
+                          Document Name:
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. RS_Choyal_Company_Profile.pdf"
+                          value={mediaFileName}
+                          onChange={(e) => setMediaFileName(e.target.value)}
+                          style={{
+                            flex: 1,
+                            padding: "6px 10px",
+                            fontSize: "12px",
+                            borderRadius: "6px",
+                            border: "1px solid #334155",
+                            backgroundColor: "#0f172a",
+                            color: "#f8fafc",
+                          }}
+                        />
+                      </div>
+                      {overrideMediaUrl.includes("/link/") && (
+                        <button
+                          type="button"
+                          onClick={() => handleCustomLinkAlias(overrideMediaUrl, (newLink) => setOverrideMediaUrl(newLink))}
+                          style={{
+                            alignSelf: "flex-start",
+                            fontSize: "11px",
+                            color: "#00a884",
+                            backgroundColor: "transparent",
+                            border: "none",
+                            cursor: "pointer",
+                            padding: "2px 0",
+                            fontWeight: 500,
+                            textDecoration: "underline",
+                          }}
+                        >
+                          Customize link handle
+                        </button>
+                      )}
+                    </div>
+                  )}
+
                   <div className={styles.variablesHelper}>
-                    Paste a direct image URL here to bypass bot-protection or replace the image without waiting for re-approval.
+                    Upload a PDF, image, or document. This overrides the template&apos;s default media. Recipients will see a clean file name instead of a raw URL.
                   </div>
                 </div>
 
@@ -1097,19 +1422,85 @@ export default function CampaignsDashboard({ currentUser }: { currentUser?: any 
                             </select>
 
                             {mapping.type === "default" ? (
-                              <input 
-                                type="text"
-                                className={styles.variableMapInput}
-                                placeholder={`Static value for {{${v}}}`}
-                                value={mapping.value || ""}
-                                onChange={(e) => {
-                                  const textVal = e.target.value;
-                                  setVariableMappings(prev => ({
-                                    ...prev,
-                                    [v]: { ...prev[v], type: "default", value: textVal }
-                                  }));
-                                }}
-                              />
+                              <div style={{ display: "flex", flexDirection: "column", gap: "4px", flex: 1 }}>
+                                <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                                  <input 
+                                    type="text"
+                                    className={styles.variableMapInput}
+                                    placeholder={`Static value or link for {{${v}}}`}
+                                    value={mapping.value || ""}
+                                    onChange={(e) => {
+                                      const textVal = e.target.value;
+                                      setVariableMappings(prev => ({
+                                        ...prev,
+                                        [v]: { ...prev[v], type: "default", value: textVal }
+                                      }));
+                                    }}
+                                    style={{ flex: 1 }}
+                                  />
+                                  <input
+                                    type="file"
+                                    id={`var-upload-${v}`}
+                                    accept=".pdf,.doc,.docx,image/*,video/*"
+                                    style={{ display: "none" }}
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0];
+                                      if (file) uploadFileForVariable(v, file);
+                                      e.target.value = "";
+                                    }}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => document.getElementById(`var-upload-${v}`)?.click()}
+                                    disabled={varUploading === v}
+                                    style={{
+                                      padding: "6px 10px",
+                                      borderRadius: "6px",
+                                      border: "1px solid #cbd5e1",
+                                      backgroundColor: "#f8fafc",
+                                      color: "#475569",
+                                      fontSize: "12px",
+                                      fontWeight: 500,
+                                      cursor: varUploading === v ? "not-allowed" : "pointer",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: "4px",
+                                      whiteSpace: "nowrap",
+                                    }}
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "#64748b" }}>
+                                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                      <polyline points="17 8 12 3 7 8"></polyline>
+                                      <line x1="12" y1="3" x2="12" y2="15"></line>
+                                    </svg>
+                                    {varUploading === v ? "Uploading…" : "Upload"}
+                                  </button>
+                                </div>
+                                {mapping.value && mapping.value.includes("/link/") && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCustomLinkAlias(mapping.value, (newLink) => {
+                                      setVariableMappings(prev => ({
+                                        ...prev,
+                                        [v]: { ...prev[v], value: newLink }
+                                      }));
+                                    })}
+                                    style={{
+                                      alignSelf: "flex-start",
+                                      fontSize: "11px",
+                                      color: "#00a884",
+                                      backgroundColor: "transparent",
+                                      border: "none",
+                                      cursor: "pointer",
+                                      padding: "2px 0",
+                                      fontWeight: 500,
+                                      textDecoration: "underline",
+                                    }}
+                                  >
+                                    Customize link handle
+                                  </button>
+                                )}
+                              </div>
                             ) : (
                               <div className={styles.csvMappingFields}>
                                 {csvHeaders.length > 0 ? (
@@ -1276,6 +1667,42 @@ export default function CampaignsDashboard({ currentUser }: { currentUser?: any 
                     <h4>Message Preview</h4>
                     <div className={styles.chatContainer}>
                       <div className={styles.chatBubble}>
+                        {overrideMediaUrl && (
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            padding: '10px 12px',
+                            borderRadius: '8px',
+                            backgroundColor: '#f0fdf4',
+                            border: '1px solid #d1fae5',
+                            marginBottom: '10px',
+                          }}>
+                            <div style={{
+                              width: '36px',
+                              height: '36px',
+                              borderRadius: '6px',
+                              backgroundColor: overrideMediaUrl.toLowerCase().includes('.pdf') || (mediaFileName && mediaFileName.toLowerCase().endsWith('.pdf')) ? '#fee2e2' : '#e0f2fe',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0,
+                            }}>
+                              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={overrideMediaUrl.toLowerCase().includes('.pdf') || (mediaFileName && mediaFileName.toLowerCase().endsWith('.pdf')) ? '#ef4444' : '#0284c7'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                              </svg>
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
+                              <div style={{ fontSize: '12px', fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {mediaFileName || getCleanFileName(overrideMediaUrl)}
+                              </div>
+                              <div style={{ fontSize: '10px', color: '#64748b' }}>
+                                {overrideMediaUrl.toLowerCase().includes('.pdf') || (mediaFileName && mediaFileName.toLowerCase().endsWith('.pdf')) ? 'PDF Document' : 'Media Attachment'}
+                              </div>
+                            </div>
+                          </div>
+                        )}
                         {previewText}
                         <span className={styles.bubbleTime}>
                           {new Date().toLocaleTimeString("en-US", {
