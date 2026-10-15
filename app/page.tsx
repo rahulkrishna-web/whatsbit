@@ -191,6 +191,7 @@ const CHAT_TEMPLATE_SIDS = [
   "HX0f7cde84a9b825505fc6a3a608c2a3be", // rscg_brochure_send
   "HXd48310d1653f996f15a7a39f6a2803b5", // rscg_follow_up
   "HX3923a558bd905659e8030c0323066bc2", // rscg_missed_call
+  "HX342f8005ee058ec84fd1292a8ed4c1df", // rscg_send_quote_v2
 ];
 
 export default function ChatApp() {
