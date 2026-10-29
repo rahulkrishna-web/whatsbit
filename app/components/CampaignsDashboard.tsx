@@ -17,7 +17,8 @@ import {
   serverTimestamp,
   increment,
   query,
-  orderBy
+  orderBy,
+  deleteField
 } from "../lib/firestore-wrapper";
 import { useApi } from "../context/WorkspaceContext";
 import styles from "./CampaignsDashboard.module.css";
@@ -677,8 +678,9 @@ export default function CampaignsDashboard({ currentUser }: { currentUser?: any 
           consecutiveFailureThreshold,
           variableMappings,
           isSimulated: simulationMode,
-          mediaUrl: overrideMediaUrl.trim() || undefined,
-          mediaFileName: mediaFileName.trim() || undefined
+          // Firestore rejects undefined; clear the field instead when it is empty
+          mediaUrl: overrideMediaUrl.trim() || deleteField(),
+          mediaFileName: mediaFileName.trim() || deleteField()
         });
         
         // Delete all old recipients from subcollection
@@ -711,8 +713,9 @@ export default function CampaignsDashboard({ currentUser }: { currentUser?: any 
           consecutiveFailureThreshold,
           variableMappings,
           isSimulated: simulationMode,
-          mediaUrl: overrideMediaUrl.trim() || undefined,
-          mediaFileName: mediaFileName.trim() || undefined
+          // Firestore rejects undefined; only include media fields when set
+          ...(overrideMediaUrl.trim() && { mediaUrl: overrideMediaUrl.trim() }),
+          ...(mediaFileName.trim() && { mediaFileName: mediaFileName.trim() })
         };
         await setDoc(campRef, campData);
       }
