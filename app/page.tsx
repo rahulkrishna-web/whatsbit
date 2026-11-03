@@ -194,6 +194,10 @@ const CHAT_TEMPLATE_SIDS = [
   "HX342f8005ee058ec84fd1292a8ed4c1df", // rscg_send_quote_v2
 ];
 
+// Bitrix CRM tab: never shorter than this, and otherwise the screen height minus Bitrix's own header and tabs.
+const BITRIX_MIN_FRAME_HEIGHT = 640;
+const BITRIX_PAGE_CHROME_HEIGHT = 240;
+
 export default function ChatApp() {
   const { orgId, clyrixApiKey, setWorkspace, logout, isConnecting, connectionError } = useWorkspace();
   const apiFetch = useApi();
@@ -613,6 +617,33 @@ export default function ChatApp() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  // Size the Bitrix iframe. BX24.fitWindow sets the frame to this page's current scroll height, so on its own it
+  // just keeps whatever (often half) height Bitrix opened the tab with. Give the page a full-height minimum first.
+  const fitBitrixFrame = () => {
+    const w = window as any;
+    if (!w.BX24 || window.self === window.top) return;
+    const target = Math.max(BITRIX_MIN_FRAME_HEIGHT, (window.screen?.availHeight || 0) - BITRIX_PAGE_CHROME_HEIGHT);
+    document.documentElement.style.setProperty("--app-min-height", `${target}px`);
+    w.BX24.fitWindow();
+  };
+
+  // Re-fit once the real UI has rendered (the tab may still be opening when BX24.init fires) and on window resizes.
+  useEffect(() => {
+    if (!isAuthorized) return;
+    const timers = [0, 600, 2000].map((ms) => setTimeout(fitBitrixFrame, ms));
+    let resizeTimer: ReturnType<typeof setTimeout> | undefined;
+    const onResize = () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(fitBitrixFrame, 200);
+    };
+    window.addEventListener("resize", onResize);
+    return () => {
+      timers.forEach(clearTimeout);
+      clearTimeout(resizeTimer);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [isAuthorized]);
+
   // Initialize Bitrix24 SDK dynamically
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -632,7 +663,7 @@ export default function ChatApp() {
           try {
             w.BX24.init(() => {
               clearTimeout(timeoutId);
-              w.BX24.fitWindow();
+              fitBitrixFrame();
               setIsAuthorized(true);
 
               // Fetch current user (staff) details
@@ -1310,6 +1341,17 @@ export default function ChatApp() {
     });
   };
 
+  // Marks an optimistic bubble as failed so a send error is visible instead of silently vanishing on refresh.
+  // The send route also saves the failed message, so the snapshot listener usually replaces this bubble.
+  const markSendFailed = (chatId: string, tempId: string, error: string, errorCode?: string) => {
+    setAllMessages(prev => ({
+      ...prev,
+      [chatId]: (prev[chatId] || []).map(m =>
+        m.id === tempId ? { ...m, status: "failed", errorMessage: error || "Message not sent", errorCode: errorCode || "" } : m
+      ),
+    }));
+  };
+
   const executeSendTemplate = async (
     template: { name: string; text: string; templateSid: string }, 
     variables: Record<string, string>
@@ -1381,6 +1423,7 @@ export default function ChatApp() {
       });
     }
 
+    const chatId = activeChatId;
     const optimisticMsg: Message = {
       id: "temp-" + Date.now(),
       text: textWithVars,
@@ -1394,7 +1437,7 @@ export default function ChatApp() {
     
     setAllMessages(prev => ({
       ...prev,
-      [activeChatId]: [...(prev[activeChatId] || []), optimisticMsg]
+      [chatId]: [...(prev[chatId] || []), optimisticMsg]
     }));
     setTimeout(scrollToBottom, 50);
 
@@ -1405,7 +1448,7 @@ export default function ChatApp() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contactId: activeChatId,
+          contactId: chatId,
           text: textWithVars,
           useTemplate: true,
           templateSid: template.templateSid,
@@ -1418,9 +1461,11 @@ export default function ChatApp() {
       const result = await response.json();
       if (!result.success) {
         console.error("Failed to send template via Twilio API:", result.error);
+        markSendFailed(chatId, optimisticMsg.id, result.error, result.errorCode);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error calling send template API:", err);
+      markSendFailed(chatId, optimisticMsg.id, err?.message || "Network error");
     } finally {
       setIsSendingTemplate(false);
     }
@@ -1842,6 +1887,7 @@ export default function ChatApp() {
     setUploadError(null);
     setUploadProgress(0);
 
+    const chatId = activeChatId;
     const optimisticMsg: Message = {
       id: "temp-" + Date.now(),
       text: messageText,
@@ -1855,7 +1901,7 @@ export default function ChatApp() {
     
     setAllMessages(prev => ({
       ...prev,
-      [activeChatId]: [...(prev[activeChatId] || []), optimisticMsg]
+      [chatId]: [...(prev[chatId] || []), optimisticMsg]
     }));
     setTimeout(scrollToBottom, 50);
 
@@ -1867,7 +1913,7 @@ export default function ChatApp() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            contactId: activeChatId,
+            contactId: chatId,
             text: messageText,
             mediaUrl: mediaUrlToSend,
             mediaType: mediaTypeToSend,
@@ -1876,11 +1922,11 @@ export default function ChatApp() {
         });
         const result = await response.json();
         if (!result.success) {
-          setUploadError(result.error || "Failed to send message via Twilio API");
+          markSendFailed(chatId, optimisticMsg.id, result.error, result.errorCode);
         }
       } catch (err: any) {
         console.error("Error calling send message API:", err);
-        setUploadError(err.message || "Failed to send message via Twilio API");
+        markSendFailed(chatId, optimisticMsg.id, err?.message || "Network error");
       }
     } else {
       // Text-only message flow
@@ -1891,7 +1937,7 @@ export default function ChatApp() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            contactId: activeChatId,
+            contactId: chatId,
             text: messageText,
             useTemplate: isWelcomeTemplate,
             senderName: currentUser ? currentUser.name : "Staff",
@@ -1900,9 +1946,11 @@ export default function ChatApp() {
         const result = await response.json();
         if (!result.success) {
           console.error("Failed to send message via Twilio API:", result.error);
+          markSendFailed(chatId, optimisticMsg.id, result.error, result.errorCode);
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error("Error calling send message API:", err);
+        markSendFailed(chatId, optimisticMsg.id, err?.message || "Network error");
       }
     }
   };
@@ -2066,7 +2114,7 @@ export default function ChatApp() {
 
   if (isAuthorized === null) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#0f172a', color: '#f8fafc', fontFamily: 'sans-serif' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%', minHeight: 'var(--app-min-height, 0px)', background: '#0f172a', color: '#f8fafc', fontFamily: 'sans-serif' }}>
         <div style={{ width: '40px', height: '40px', border: '4px solid #334155', borderTop: '4px solid #3b82f6', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
         <p style={{ marginTop: '16px', fontSize: '14px', opacity: 0.8 }}>Connecting to Bitrix24...</p>
         <style dangerouslySetInnerHTML={{__html: `
@@ -2078,7 +2126,7 @@ export default function ChatApp() {
 
   if (isAuthorized === false) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#0f172a', color: '#f8fafc', padding: '24px', fontFamily: 'sans-serif', textAlign: 'center' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%', minHeight: 'var(--app-min-height, 0px)', background: '#0f172a', color: '#f8fafc', padding: '24px', fontFamily: 'sans-serif', textAlign: 'center' }}>
         <div style={{ background: '#ef444415', border: '1px solid #ef444430', borderRadius: '12px', padding: '32px', maxWidth: '480px' }}>
           <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: '16px', display: 'inline-block' }}>
             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>

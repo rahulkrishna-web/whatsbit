@@ -6,6 +6,8 @@
 
 html, body {
   height: 100%;
+  /* Set on the Bitrix tab (see fitBitrixFrame) so BX24.fitWindow measures a full-height page */
+  min-height: var(--app-min-height, 0px);
   width: 100%;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   background-color: #f0f2f5;
